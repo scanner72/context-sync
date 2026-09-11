@@ -1,0 +1,33 @@
+-- Enable pgvector and uuid extensions
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Context documents table
+CREATE TABLE IF NOT EXISTS contexts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title VARCHAR(512) NOT NULL,
+    content TEXT NOT NULL,
+    tags TEXT[] NOT NULL DEFAULT '{}',
+    project VARCHAR(128) NOT NULL DEFAULT 'global',
+    author_device VARCHAR(128) DEFAULT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    embedding vector(384),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- HNSW index for fast approximate nearest neighbor search with cosine distance
+CREATE INDEX IF NOT EXISTS idx_contexts_embedding_hnsw 
+ON contexts USING hnsw (embedding vector_cosine_ops);
+
+-- GIN index for efficient tag filtering
+CREATE INDEX IF NOT EXISTS idx_contexts_tags 
+ON contexts USING gin (tags);
+
+-- BTree index on project
+CREATE INDEX IF NOT EXISTS idx_contexts_project 
+ON contexts (project);
+
+-- Full-text search index for hybrid ranking
+CREATE INDEX IF NOT EXISTS idx_contexts_fts 
+ON contexts USING gin (to_tsvector('simple', title || ' ' || content));

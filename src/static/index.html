@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Context Sync | Remote Context Store MCP</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        },
+                        dark: {
+                            bg: '#0d1117',
+                            card: '#161b22',
+                            border: '#30363d',
+                            hover: '#21262d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="bg-[#0d1117] text-[#e6edf3] min-h-screen flex flex-col antialiased">
+
+    <!-- Top Navigation Header -->
+    <header class="border-b border-[#30363d] bg-[#161b22]/80 backdrop-blur sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="h-9 w-9 rounded-lg bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+                    <i data-lucide="brain-circuit" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span class="font-bold text-lg tracking-tight text-white">Context Sync</span>
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 font-mono">MCP Remote</span>
+                    </div>
+                    <p id="headerSubtitle" data-i18n="header_subtitle" class="text-xs text-slate-400 hidden sm:block">Сквозная база знаний и векторная память для ИИ-агентов</p>
+                </div>
+            </div>
+
+            <!-- Status & Auth controls -->
+            <div class="flex items-center space-x-3">
+                <!-- Language Toggle -->
+                <div class="flex items-center bg-[#21262d] border border-[#30363d] rounded-lg p-0.5 text-xs font-semibold">
+                    <button onclick="setLanguage('ru')" id="lang-btn-ru" class="px-2 py-1 rounded transition text-white bg-indigo-600">RU</button>
+                    <button onclick="setLanguage('en')" id="lang-btn-en" class="px-2 py-1 rounded transition text-slate-400 hover:text-white">EN</button>
+                </div>
+
+                <div id="healthBadge" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-300">
+                    <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="healthText" data-i18n="health_checking">Проверка...</span>
+                </div>
+
+                <button onclick="openTokenModal()" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] text-xs font-medium text-slate-200 transition">
+                    <i data-lucide="key" class="w-3.5 h-3.5 text-amber-400"></i>
+                    <span id="tokenBtnLabel" data-i18n="btn_token">Токен авторизации</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Navigation Tabs -->
+    <div class="border-b border-[#30363d] bg-[#0d1117]">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav class="flex space-x-6">
+                <button onclick="switchTab('search')" id="tab-btn-search" class="tab-btn py-3.5 px-1 border-b-2 border-indigo-500 text-indigo-400 font-medium text-sm flex items-center space-x-2">
+                    <i data-lucide="search" class="w-4 h-4"></i>
+                    <span data-i18n="tab_search">Поиск контекста</span>
+                </button>
+                <button onclick="switchTab('list')" id="tab-btn-list" class="tab-btn py-3.5 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium text-sm flex items-center space-x-2">
+                    <i data-lucide="layers" class="w-4 h-4"></i>
+                    <span data-i18n="tab_list">Все документы</span>
+                    <span id="contextsCountBadge" class="text-xs px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-400">0</span>
+                </button>
+                <button onclick="switchTab('editor')" id="tab-btn-editor" class="tab-btn py-3.5 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium text-sm flex items-center space-x-2">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                    <span data-i18n="tab_editor">Создать контекст</span>
+                </button>
+                <button onclick="switchTab('mcp')" id="tab-btn-mcp" class="tab-btn py-3.5 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium text-sm flex items-center space-x-2">
+                    <i data-lucide="cpu" class="w-4 h-4"></i>
+                    <span data-i18n="tab_mcp">Подключение агентов (mcp.json)</span>
+                </button>
+                <button onclick="switchTab('fleet')" id="tab-btn-fleet" class="tab-btn py-3.5 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium text-sm flex items-center space-x-2">
+                    <i data-lucide="radio" class="w-4 h-4 text-emerald-400"></i>
+                    <span data-i18n="tab_fleet">Флот агентов</span>
+                    <span id="fleetCountBadge" class="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-950/80 text-emerald-300 font-mono">0</span>
+                </button>
+                <button onclick="switchTab('autosync')" id="tab-btn-autosync" class="tab-btn py-3.5 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium text-sm flex items-center space-x-2">
+                    <i data-lucide="refresh-cw" class="w-4 h-4 text-cyan-400"></i>
+                    <span data-i18n="tab_autosync">Авто-синхронизация проектов</span>
+                    <span id="syncProjectsBadge" class="text-[10px] px-1.5 py-0.2 rounded-full bg-cyan-950/80 text-cyan-300 font-mono">0</span>
+                </button>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Main Container Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+
+        <!-- ================= TAB: SEARCH ================= -->
+        <section id="tab-search" class="space-y-6">
+            <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-5 shadow-lg">
+                <form id="searchForm" onsubmit="handleSearch(event)" class="space-y-4">
+                    <div>
+                        <label data-i18n="search_heading" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Семантический запрос на естественном языке</label>
+                        <div class="relative">
+                            <i data-lucide="sparkles" class="w-5 h-5 text-indigo-400 absolute left-3.5 top-3"></i>
+                            <input type="text" id="searchQuery" data-i18n-placeholder="search_placeholder" placeholder="Например: Как реализован пулинг соединений базы данных и Celery?" 
+                                   class="w-full bg-[#0d1117] border border-[#30363d] focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg pl-11 pr-28 py-2.5 text-sm text-white placeholder-slate-500 transition">
+                            <button type="submit" class="absolute right-1.5 top-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-md text-xs font-medium flex items-center space-x-1.5 transition">
+                                <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                                <span data-i18n="search_btn">Найти</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filters bar -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs">
+                        <div>
+                            <label data-i18n="filter_project" class="block text-slate-400 mb-1">Проект</label>
+                            <input type="text" id="searchProject" data-i18n-placeholder="filter_project_placeholder" placeholder="Любой (или e.g. global)" 
+                                   class="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-2.5 py-1.5 text-slate-200">
+                        </div>
+                        <div>
+                            <label data-i18n="filter_tags" class="block text-slate-400 mb-1">Теги (через запятую)</label>
+                            <input type="text" id="searchTags" data-i18n-placeholder="filter_tags_placeholder" placeholder="e.g. auth, fastapi" 
+                                   class="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-2.5 py-1.5 text-slate-200">
+                        </div>
+                        <div>
+                            <label data-i18n="filter_min_score" class="block text-slate-400 mb-1">Мин. сходство (порог)</label>
+                            <div class="flex items-center space-x-2">
+                                <input type="range" id="searchMinScore" min="0.1" max="0.9" step="0.05" value="0.25" 
+                                       oninput="document.getElementById('minScoreVal').innerText = Math.round(this.value * 100) + '%'"
+                                       class="w-full accent-indigo-500 h-1.5 bg-slate-700 rounded-lg cursor-pointer">
+                                <span id="minScoreVal" class="text-indigo-400 font-mono font-medium">25%</span>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Search Results Area -->
+            <div id="searchResultsArea" class="space-y-4">
+                <div class="flex items-center justify-between text-xs text-slate-400">
+                    <span id="searchResultsCount" data-i18n="search_prompt_idle">Введите запрос для семантического поиска</span>
+                </div>
+                <div id="searchResultsList" class="space-y-3">
+                    <!-- Cards will be dynamically injected here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB: CONTEXTS LIST ================= -->
+        <section id="tab-list" class="space-y-4 hidden">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 data-i18n="list_title" class="text-base font-semibold text-white">Сохранённый контекст</h2>
+                    <p data-i18n="list_subtitle" class="text-xs text-slate-400">Единая база знаний архитектурных решений всех ваших устройств</p>
+                </div>
+                <button onclick="switchTab('editor'); prepareNewContext();" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                    <span data-i18n="btn_new_context">Новая запись</span>
+                </button>
+            </div>
+
+            <div id="contextsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Cards dynamically loaded here -->
+            </div>
+        </section>
+
+        <!-- ================= TAB: EDITOR ================= -->
+        <section id="tab-editor" class="space-y-4 hidden">
+            <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-5 shadow-lg">
+                <div class="flex items-center justify-between pb-4 border-b border-[#30363d] mb-4">
+                    <div>
+                        <h2 id="editorTitle" data-i18n="editor_title" class="text-base font-semibold text-white">Создание контекста</h2>
+                        <p data-i18n="editor_subtitle" class="text-xs text-slate-400">Запись сохранится в векторную базу и мгновенно станет доступна всем агентам</p>
+                    </div>
+                    <input type="hidden" id="editContextId">
+                </div>
+
+                <form id="editorForm" onsubmit="handleSaveContext(event)" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div class="sm:col-span-2">
+                            <label data-i18n="editor_field_title" class="block text-xs font-semibold text-slate-400 mb-1">Заголовок решения / контекста *</label>
+                            <input type="text" id="ctxTitle" required data-i18n-placeholder="editor_field_title_placeholder" placeholder="Например: Паттерн авторизации JWT и рефреш токенов" 
+                                   class="w-full bg-[#0d1117] border border-[#30363d] focus:border-indigo-500 rounded-lg px-3 py-2 text-sm text-white">
+                        </div>
+                        <div>
+                            <label data-i18n="editor_field_project" class="block text-xs font-semibold text-slate-400 mb-1">Проект (Scope)</label>
+                            <input type="text" id="ctxProject" value="global" placeholder="global" 
+                                   class="w-full bg-[#0d1117] border border-[#30363d] focus:border-indigo-500 rounded-lg px-3 py-2 text-sm text-white">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label data-i18n="editor_field_tags" class="block text-xs font-semibold text-slate-400 mb-1">Теги (через запятую)</label>
+                        <input type="text" id="ctxTags" data-i18n-placeholder="editor_field_tags_placeholder" placeholder="auth, jwt, security, fastapi" 
+                                class="w-full bg-[#0d1117] border border-[#30363d] focus:border-indigo-500 rounded-lg px-3 py-2 text-sm text-white">
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <label data-i18n="editor_field_content" class="block text-xs font-semibold text-slate-400">Содержимое (Markdown) *</label>
+                            <div class="flex space-x-2 text-xs">
+                                <button type="button" onclick="setEditorPreview(false)" id="btnEditorWrite" data-i18n="editor_tab_write" class="px-2 py-0.5 rounded bg-indigo-600 text-white font-medium">Редактор</button>
+                                <button type="button" onclick="setEditorPreview(true)" id="btnEditorPreview" data-i18n="editor_tab_preview" class="px-2 py-0.5 rounded bg-[#21262d] text-slate-300 font-medium">Предпросмотр</button>
+                            </div>
+                        </div>
+
+                        <div id="editorWriteContainer">
+                            <textarea id="ctxContent" required rows="12" data-i18n-placeholder="editor_content_placeholder" placeholder="# Архитектурное решение&#10;&#10;Опишите принятые решения, подводные камни, сниппеты кода..." 
+                                      class="w-full bg-[#0d1117] border border-[#30363d] focus:border-indigo-500 font-mono rounded-lg p-3 text-sm text-slate-200 leading-relaxed"></textarea>
+                        </div>
+                        <div id="editorPreviewContainer" class="hidden min-h-[300px] max-h-[500px] overflow-y-auto bg-[#0d1117] border border-[#30363d] rounded-lg p-4 markdown-body">
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end space-x-3 pt-2">
+                        <button type="button" onclick="switchTab('list')" data-i18n="btn_cancel" class="px-4 py-2 rounded-lg bg-[#21262d] hover:bg-[#30363d] text-xs font-medium text-slate-300 transition">Отмена</button>
+                        <button type="submit" id="saveBtn" class="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium flex items-center space-x-1.5 transition shadow">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                            <span data-i18n="btn_save">Сохранить в базу</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- ================= TAB: MCP SETUP ASSISTANT ================= -->
+        <section id="tab-mcp" class="space-y-6 hidden">
+            <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-lg space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center space-x-2">
+                        <i data-lucide="plug" class="w-5 h-5 text-indigo-400"></i>
+                        <span data-i18n="mcp_title">Подключение кодинг-агентов через MCP</span>
+                    </h2>
+                    <p data-i18n="mcp_subtitle" class="text-sm text-slate-400 mt-1">
+                        Добавьте эту конфигурацию в файл <code>mcp.json</code> (или <code>claude_desktop_config.json</code>) на ваших ноутбуках.
+                    </p>
+                </div>
+
+                <!-- Endpoint URLs display -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-3.5">
+                        <span data-i18n="mcp_remote_sse" class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Remote SSE Endpoint</span>
+                        <div class="flex items-center justify-between">
+                            <code id="displaySseUrl" class="text-indigo-300 text-xs truncate mr-2">https://.../sse</code>
+                            <button onclick="copyToClipboard(document.getElementById('displaySseUrl').innerText)" class="text-slate-400 hover:text-white p-1">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bg-[#0d1117] border border-[#30363d] rounded-lg p-3.5">
+                        <span data-i18n="mcp_active_token" class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Активный токен</span>
+                        <div class="flex items-center justify-between">
+                            <code id="displayTokenVal" class="text-amber-300 text-xs truncate mr-2">Не задан</code>
+                            <button onclick="copyToClipboard(document.getElementById('displayTokenVal').innerText)" class="text-slate-400 hover:text-white p-1">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Config for Claude Desktop / Cursor / Antigravity -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-semibold text-white flex items-center space-x-2">
+                            <span data-i18n="mcp_standard_title">Конфигурация для Cursor, Antigravity, VS Code</span>
+                        </span>
+                        <button onclick="copyMcpJson('standard')" class="px-3 py-1 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 rounded text-xs text-indigo-300 flex items-center space-x-1 transition">
+                            <i data-lucide="copy" class="w-3 h-3"></i>
+                            <span data-i18n="mcp_copy_json">Копировать JSON</span>
+                        </button>
+                    </div>
+                    <pre class="bg-[#0d1117] border border-[#30363d] p-3 rounded-lg text-xs text-slate-300 overflow-x-auto"><code id="mcpConfigJson"></code></pre>
+                </div>
+
+                <!-- Config for mcp-remote command (stdio clients) -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span data-i18n="mcp_stdio_title" class="text-sm font-semibold text-white">Универсальный mcp-remote (для Claude Desktop и stdio)</span>
+                        <button onclick="copyMcpJson('remote')" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs text-slate-300 flex items-center space-x-1 transition">
+                            <i data-lucide="copy" class="w-3 h-3"></i>
+                            <span data-i18n="mcp_copy_json">Копировать JSON</span>
+                        </button>
+                    </div>
+                    <pre class="bg-[#0d1117] border border-[#30363d] p-3 rounded-lg text-xs text-slate-300 overflow-x-auto"><code id="mcpRemoteConfigJson"></code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB: FLEET & AUTO-SCANNER ================= -->
+        <section id="tab-fleet" class="space-y-6 hidden">
+            <!-- Active Connected Agents -->
+            <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-lg space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center space-x-2">
+                            <i data-lucide="radio" class="w-5 h-5 text-emerald-400"></i>
+                            <span data-i18n="fleet_title">Подключенные агенты и устройства (Live Fleet)</span>
+                        </h2>
+                        <p data-i18n="fleet_subtitle" class="text-xs text-slate-400 mt-0.5">Активные MCP-сессии с ваших ноутбуков и серверов в реальном времени</p>
+                    </div>
+                    <button onclick="loadFleet()" class="px-3 py-1.5 bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg text-xs font-medium text-slate-300 flex items-center space-x-1.5 transition">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                        <span data-i18n="btn_refresh">Обновить</span>
+                    </button>
+                </div>
+
+                <div id="fleetList" class="space-y-3">
+                    <!-- Fleet dynamic items -->
+                </div>
+            </div>
+
+            <!-- Auto-Scanner for Local Machine -->
+            <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-lg space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <h3 class="text-base font-bold text-white flex items-center space-x-2">
+                            <i data-lucide="scan" class="w-5 h-5 text-indigo-400"></i>
+                            <span data-i18n="scanner_title">Автосканирование локальных IDE и агентов</span>
+                        </h3>
+                        <p data-i18n="scanner_subtitle" class="text-xs text-slate-400 mt-0.5">Поиск установленных на этой машине Cursor, Claude Desktop, Antigravity, Windsurf и Cline с автоматическим подключением к Context Sync</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="runLocalScanner(false)" id="btnRefreshScanner" title="Проверить статус" class="px-3 py-1.5 bg-[#21262d] hover:bg-[#30363d] text-slate-300 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition border border-[#30363d]">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                            <span data-i18n="btn_refresh">Обновить</span>
+                        </button>
+                        <button onclick="runLocalScannerAndConnect(false)" id="btnRunScanner" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition shadow">
+                            <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+                            <span data-i18n="btn_run_scanner">Найти и подключить агентов</span>
+                        </button>
+                        <button onclick="runLocalScannerAndConnect(true)" id="btnReconnectAll" title="Принудительно обновить конфиг во всех найденных агентах" class="px-3 py-1.5 bg-emerald-700/60 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium flex items-center space-x-1.5 transition border border-emerald-600/40">
+                            <i data-lucide="refresh-ccw" class="w-3.5 h-3.5"></i>
+                            <span data-i18n="btn_reconnect_all">Переподключить всех</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Scanner Status Bar -->
+                <div id="scannerStatusBar" class="hidden bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-2.5 flex items-center justify-between text-xs">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span id="scannerStatusText" class="text-slate-300 font-medium"></span>
+                    </div>
+                    <div id="scannerLastChecked" class="text-slate-500 text-[11px] font-mono"></div>
+                </div>
+
+                <div id="scannerTargetsList" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <!-- Scanner targets populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Remote Laptops One-Liner -->
+            <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-lg space-y-3">
+                <h3 class="text-sm font-bold text-white flex items-center space-x-2">
+                    <i data-lucide="terminal" class="w-4 h-4 text-amber-400"></i>
+                    <span data-i18n="remote_cmd_title">Команда автосканирования для других ноутбуков / машин</span>
+                </h3>
+                <p data-i18n="remote_cmd_desc" class="text-xs text-slate-400">
+                    На удалённом ноутбуке выполните эту команду в терминале репозитория — она автоматически найдёт всех локальных агентов и подключит их к вашему серверу:
+                </p>
+
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between text-xs text-slate-400">
+                        <span>PowerShell (Windows) / Bash (macOS & Linux):</span>
+                        <button onclick="copyToClipboard(document.getElementById('remoteScannerCmd').innerText)" class="text-indigo-400 hover:text-indigo-300 flex items-center space-x-1">
+                            <i data-lucide="copy" class="w-3 h-3"></i>
+                            <span data-i18n="btn_copy_cmd">Копировать команду</span>
+                        </button>
+                    </div>
+                    <pre class="bg-[#0d1117] border border-[#30363d] p-3 rounded-lg text-xs text-indigo-300 font-mono overflow-x-auto"><code id="remoteScannerCmd"></code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB: AUTO-SYNC ================= -->
+        <section id="tab-autosync" class="hidden space-y-6">
+            <!-- Header & Control Bar -->
+            <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-lg">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <div class="flex items-center space-x-3">
+                            <span class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <h2 data-i18n="autosync_title" class="text-lg font-bold text-white">Автономная синхронизация проектов и чатов</h2>
+                        </div>
+                        <p data-i18n="autosync_desc" class="text-xs text-slate-400 mt-1 max-w-2xl">
+                            Фоновый демон считывает новые ветки и решения из баз Codex, Cursor, Claude и Antigravity, автоматически сохраняет их в векторную память и обновляет файлы <code>CLAUDE.md</code>, <code>AGENTS.md</code> и <code>.cursorrules</code> без ручных команд.
+                        </p>
+                    </div>
+
+                    <div class="flex items-center space-x-3">
+                        <button onclick="triggerAutoSync()" id="btnTriggerSync" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center space-x-2 transition shadow">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                            <span data-i18n="btn_sync_now">Синхронизировать сейчас</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats ribbon -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-5 border-t border-[#30363d]">
+                    <div>
+                        <span data-i18n="stats_active_projects" class="block text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Активных проектов</span>
+                        <span id="syncTotalProjects" class="text-lg font-bold text-white font-mono">—</span>
+                    </div>
+                    <div>
+                        <span data-i18n="stats_sessions_memory" class="block text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Сессий в памяти</span>
+                        <span id="syncTotalSessions" class="text-lg font-bold text-indigo-400 font-mono">—</span>
+                    </div>
+                    <div>
+                        <span data-i18n="stats_interval" class="block text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Интервал авто-синка</span>
+                        <span class="text-lg font-bold text-emerald-400 font-mono" id="syncIntervalDisplay">90 сек</span>
+                    </div>
+                    <div>
+                        <span data-i18n="stats_last_cycle" class="block text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Последний цикл</span>
+                        <span id="syncLastTime" class="text-xs font-medium text-slate-300 font-mono mt-1 block">Ожидание...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detected Projects Grid -->
+            <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-lg space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-base font-bold text-white flex items-center space-x-2">
+                            <i data-lucide="folder-git-2" class="w-5 h-5 text-indigo-400"></i>
+                            <span data-i18n="sync_projects_heading">Синхронизируемые проекты на вашем компьютере</span>
+                        </h3>
+                        <p data-i18n="sync_projects_sub" class="text-xs text-slate-400 mt-0.5">В каждом из этих проектов файлы контекста автоматически дополняются актуальными решениями</p>
+                    </div>
+                    <span id="projectsCountIndicator" class="text-xs text-slate-400"></span>
+                </div>
+
+                <div id="syncProjectsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                    <!-- Project cards loaded dynamically -->
+                </div>
+            </div>
+
+            <!-- Background Runner Info Card -->
+            <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-lg space-y-3">
+                <h3 class="text-sm font-bold text-white flex items-center space-x-2">
+                    <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i>
+                    <span data-i18n="sync_daemon_run_title">Запуск постоянного фонового демона на Windows</span>
+                </h3>
+                <p data-i18n="sync_daemon_run_desc" class="text-xs text-slate-400">
+                    Чтобы синхронизация шла непрерывно каждые 90 секунд в фоне даже при закрытом браузере, запустите в PowerShell скрипт:
+                </p>
+
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between text-xs text-slate-400">
+                        <span>PowerShell:</span>
+                        <button onclick="copyToClipboard('.\\start-auto-sync.ps1')" class="text-indigo-400 hover:text-indigo-300 flex items-center space-x-1">
+                            <i data-lucide="copy" class="w-3 h-3"></i>
+                            <span data-i18n="btn_copy">Копировать</span>
+                        </button>
+                    </div>
+                    <pre class="bg-[#0d1117] border border-[#30363d] p-3 rounded-lg text-xs text-emerald-300 font-mono overflow-x-auto"><code>.\start-auto-sync.ps1</code></pre>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Token Configuration Modal -->
+    <div id="tokenModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-[#161b22] border border-[#30363d] rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="key" class="w-5 h-5 text-amber-400"></i>
+                    <h3 data-i18n="token_modal_title" class="text-base font-bold text-white">Токен аутентификации</h3>
+                </div>
+                <button onclick="closeTokenModal()" class="text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <p data-i18n="token_modal_desc" class="text-xs text-slate-400 leading-relaxed">
+                Введите Bearer-токен (значение <code>AUTH_TOKEN</code> из <code>.env</code>). Он сохранится в localStorage вашего браузера для работы с API.
+            </p>
+            <div>
+                <input type="password" id="inputAuthToken" data-i18n-placeholder="token_modal_placeholder" placeholder="Вставьте AUTH_TOKEN..." 
+                       class="w-full bg-[#0d1117] border border-[#30363d] focus:border-indigo-500 rounded-lg px-3 py-2 text-sm text-white font-mono">
+            </div>
+            <div class="flex justify-end space-x-3 pt-2">
+                <button onclick="closeTokenModal()" data-i18n="btn_cancel" class="px-4 py-2 rounded-lg bg-[#21262d] text-xs font-medium text-slate-300">Отмена</button>
+                <button onclick="saveToken()" data-i18n="btn_save_token" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-medium text-white shadow">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-indigo-600 text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-medium flex items-center space-x-2">
+        <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+        <span id="toastMsg">Успешно!</span>
+    </div>
+
+    <!-- App JavaScript -->
+    <script src="/static/app.js"></script>
+</body>
+</html>

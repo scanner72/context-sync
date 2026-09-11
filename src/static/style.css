@@ -1,0 +1,84 @@
+/* Custom styling for Remote Context Store UI */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+}
+
+body {
+    font-family: var(--font-sans);
+    background-color: #0d1117;
+    color: #e6edf3;
+}
+
+code, pre {
+    font-family: var(--font-mono);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #161b22;
+}
+::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+}
+
+/* Markdown typography inside cards */
+.markdown-body {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: #c9d1d9;
+}
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+    color: #f0f6fc;
+    font-weight: 600;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+.markdown-body h1 { font-size: 1.3rem; }
+.markdown-body h2 { font-size: 1.15rem; }
+.markdown-body h3 { font-size: 1.05rem; }
+.markdown-body p { margin-bottom: 0.75rem; }
+.markdown-body ul, .markdown-body ol {
+    margin-left: 1.25rem;
+    margin-bottom: 0.75rem;
+}
+.markdown-body li {
+    margin-bottom: 0.25rem;
+    list-style-type: disc;
+}
+.markdown-body pre {
+    background-color: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 0.75rem;
+    overflow-x: auto;
+    margin-bottom: 0.75rem;
+}
+.markdown-body code {
+    background-color: rgba(110, 118, 129, 0.4);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    font-size: 85%;
+}
+.markdown-body pre code {
+    background-color: transparent;
+    padding: 0;
+    font-size: 0.85rem;
+    color: #58a6ff;
+}
+.markdown-body blockquote {
+    border-left: 3px solid #388bfd;
+    padding-left: 0.75rem;
+    color: #8b949e;
+    margin-bottom: 0.75rem;
+}

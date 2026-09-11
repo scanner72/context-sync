@@ -1,0 +1,542 @@
+"""FastAPI application with MCP SSE transport, Bearer authentication, and REST endpoints."""
+
+import json
+import uuid
+import asyncio
+import logging
+from typing import Any, Dict, Optional
+from contextlib import asynccontextmanager
+
+from pathlib import Path
+from fastapi import FastAPI, Request, HTTPException, Security, Depends, status, Query
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+from src.config import settings
+from src.database import init_db
+from src.mcp_server import mcp_handler
+from src.context_store import context_store
+from src.fleet import fleet_tracker
+from src.scanner import scan_agents, inject_mcp_server
+
+logger = logging.getLogger(__name__)
+
+# Security scheme for Swagger UI & header validation
+security_scheme = HTTPBearer(auto_error=False)
+
+# In-memory store for active SSE client message queues: session_id -> asyncio.Queue
+active_sessions: Dict[str, asyncio.Queue] = {}
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application startup and shutdown hooks."""
+    logger.info("Initializing database schema...")
+    try:
+        await init_db()
+        logger.info("Database initialized successfully.")
+    except Exception as e:
+        logger.warning(f"Database init warning (might be using SQLite/mock or pending migration): {e}")
+    yield
+    logger.info("Shutting down context sync service...")
+
+
+app = FastAPI(
+    title="Remote Context Store MCP Service",
+    description="Cross-device AI Context Synchronizer & Vector Memory via Model Context Protocol (MCP).",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+# Mount static assets (CSS, JS, icons)
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+# Enable CORS for web-based or remote clients
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/", tags=["UI"], include_in_schema=False)
+async def serve_ui():
+    """Serve the Web Dashboard SPA."""
+    index_file = STATIC_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+    return JSONResponse({"message": "Remote Context Store API is running. UI assets not found."})
+
+
+async def verify_token(
+    request: Request,
+    auth: Optional[HTTPAuthorizationCredentials] = Security(security_scheme),
+    token: Optional[str] = Query(None, description="Auth token via query parameter"),
+) -> str:
+    """Validate Bearer token from header or URL query parameter."""
+    provided_token: Optional[str] = None
+
+    # Check Authorization header: Bearer <token>
+    if auth and auth.credentials:
+        provided_token = auth.credentials
+
+    # Check query parameter ?token=<token>
+    elif token:
+        provided_token = token
+
+    # Check raw header as fallback
+    elif "Authorization" in request.headers:
+        header_val = request.headers["Authorization"]
+        if header_val.startswith("Bearer "):
+            provided_token = header_val[7:].strip()
+
+    if not provided_token or provided_token != settings.auth_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return provided_token
+
+
+@app.get("/health", tags=["System"])
+async def health_check():
+    """Health check endpoint for Docker / orchestration."""
+    return {
+        "status": "healthy",
+        "service": "remote-context-store",
+        "embedding_provider": settings.embedding_provider,
+        "active_sse_sessions": len(active_sessions),
+    }
+
+
+@app.get("/api/v1/system/info", tags=["System"])
+async def system_info(request: Request):
+    """Provide system info and auto-auth token for localhost clients."""
+    client_host = request.client.host if request.client else ""
+    # In Docker Desktop on Windows or local loopback:
+    is_local = (
+        client_host in ("127.0.0.1", "::1", "localhost", "testclient")
+        or client_host.startswith("192.168.")
+        or client_host.startswith("10.")
+        or client_host.startswith("172.")
+    )
+    return {
+        "is_localhost": is_local,
+        "auth_token": settings.auth_token if is_local else None,
+        "service": "remote-context-store",
+        "status": "healthy",
+        "embedding_provider": settings.embedding_provider,
+    }
+
+
+@app.get("/.well-known/oauth-protected-resource", include_in_schema=False)
+@app.get("/.well-known/oauth-protected-resource/{path:path}", include_in_schema=False)
+async def oauth_protected_resource():
+    """OAuth 2.0 Protected Resource Metadata (RFC 9728) for MCP client discovery."""
+    return {
+        "resource": "http://localhost:8000",
+        "authorization_servers": [],
+        "scopes_supported": [],
+        "bearer_methods_supported": ["header", "query"],
+    }
+
+
+# ============================================================================
+# MCP SSE & Stream over HTTP Transport Endpoints
+# ============================================================================
+
+@app.get("/sse", tags=["MCP"])
+@app.get("/mcp", tags=["MCP"])
+async def mcp_sse_endpoint(
+    request: Request,
+    _token: str = Depends(verify_token),
+):
+    """MCP SSE endpoint.
+    
+    Establishes Server-Sent Events stream with client and registers message queue.
+    """
+    session_id = str(uuid.uuid4())
+    queue: asyncio.Queue = asyncio.Queue()
+    active_sessions[session_id] = queue
+
+    client_host = request.client.host if request.client else "unknown"
+    user_agent = request.headers.get("User-Agent")
+    client_device = request.headers.get("X-Client-Device") or request.query_params.get("device")
+    fleet_tracker.register(session_id, client_host, user_agent, client_device)
+    logger.info(f"New MCP SSE client connected: session_id={session_id}, host={client_host}")
+
+    async def event_generator():
+        try:
+            # 1. First event required by MCP SSE spec: advertise the message POST endpoint
+            # Client will append session_id when posting messages
+            endpoint_path = f"/messages?session_id={session_id}"
+            yield f"event: endpoint\r\ndata: {endpoint_path}\r\n\r\n"
+
+            # 2. Main event loop: stream messages from queue or emit heartbeat ping
+            while True:
+                # Check for client disconnect
+                if await request.is_disconnected():
+                    logger.info(f"MCP SSE client disconnected: session_id={session_id}")
+                    break
+
+                try:
+                    # Wait for message with 15s timeout for heartbeat
+                    msg = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    yield f"event: message\r\ndata: {json.dumps(msg, ensure_ascii=False)}\r\n\r\n"
+                    queue.task_done()
+                except asyncio.TimeoutError:
+                    # Send periodic SSE comment to keep TCP connection active through proxies/NAT
+                    yield ": ping\r\n\r\n"
+
+        finally:
+            active_sessions.pop(session_id, None)
+            fleet_tracker.unregister(session_id)
+            logger.info(f"Cleaned up MCP session {session_id}")
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/messages", tags=["MCP"])
+async def mcp_messages_endpoint(
+    request: Request,
+    session_id: str = Query(..., description="Active session ID received from SSE endpoint"),
+    _token: str = Depends(verify_token),
+):
+    """MCP message receiver.
+    
+    Receives JSON-RPC 2.0 requests from client and routes them through the MCP Server.
+    """
+    if session_id not in active_sessions:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Active session '{session_id}' not found. Please connect to /sse first.",
+        )
+
+    try:
+        body = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON body: {exc}")
+
+    client_device = request.headers.get("X-Client-Device") or request.headers.get("User-Agent")
+    
+    # Record fleet activity
+    tool_name = None
+    if body.get("method") == "tools/call":
+        tool_name = body.get("params", {}).get("name")
+    fleet_tracker.record_activity(session_id, tool_name)
+
+    # Process the request through MCP server handler
+    response = await mcp_handler.handle_request(body, client_info=client_device)
+
+    # If the method was a request that requires a response, send it back via SSE queue
+    if response is not None:
+        queue = active_sessions.get(session_id)
+        if queue:
+            await queue.put(response)
+
+    # Return HTTP 202 Accepted per MCP HTTP transport specification
+    return JSONResponse(status_code=status.HTTP_202_ACCEPTED, content={"status": "accepted"})
+
+
+@app.post("/sse", tags=["MCP"])
+@app.post("/mcp", tags=["MCP"])
+async def mcp_stream_http_endpoint(
+    request: Request,
+    _token: str = Depends(verify_token),
+):
+    """Handle MCP Stream over HTTP (HTTP POST Transport).
+    
+    Directly receives JSON-RPC 2.0 requests (e.g. initialize, tools/list, tools/call)
+    and returns JSON-RPC responses over HTTP without requiring an active SSE stream.
+    """
+    try:
+        body = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON body: {exc}")
+
+    client_device = request.headers.get("X-Client-Device") or request.headers.get("User-Agent")
+    client_host = request.client.host if request.client else "unknown"
+
+    # Support batch JSON-RPC requests
+    is_batch = isinstance(body, list)
+    requests_list = body if is_batch else [body]
+    responses = []
+
+    for item in requests_list:
+        if not isinstance(item, dict):
+            continue
+
+        method = item.get("method")
+        
+        # Track fleet sessions on initialize
+        if method == "initialize":
+            client_info = item.get("params", {}).get("clientInfo", {})
+            client_name = client_info.get("name") or client_device or "MCP Client"
+            sess_id = str(uuid.uuid4())
+            fleet_tracker.register(
+                sess_id, client_host, user_agent=client_device, device_name=client_name
+            )
+
+        # Track fleet tool calls
+        if method == "tools/call":
+            tool_name = item.get("params", {}).get("name")
+            for s in fleet_tracker._sessions.values():
+                s.record_activity(tool_name)
+
+        resp = await mcp_handler.handle_request(item, client_info=client_device)
+        if resp is not None:
+            responses.append(resp)
+
+    if is_batch:
+        return JSONResponse(status_code=200, content=responses)
+    
+    if responses:
+        return JSONResponse(status_code=200, content=responses[0])
+    
+    # For notifications (e.g. notifications/initialized) where no JSON-RPC response is returned
+    return JSONResponse(status_code=200, content={"status": "accepted"})
+
+
+# ============================================================================
+# Fleet & Auto-Scanner Endpoints
+# ============================================================================
+
+@app.get("/api/v1/fleet", tags=["Fleet"])
+async def get_fleet_api(_token: str = Depends(verify_token)):
+    """List all currently active connected agent sessions."""
+    agents = fleet_tracker.list_active()
+    return {"agents": agents, "count": len(agents)}
+
+
+@app.get("/api/v1/scanner", tags=["Scanner"])
+async def get_scanner_api(_token: str = Depends(verify_token)):
+    """Scan local host for installed coding agents and IDE configurations."""
+    targets = scan_agents()
+    return {
+        "targets": [
+            {
+                "name": t.name,
+                "app_id": t.app_id,
+                "config_path": str(t.config_path),
+                "detected": t.detected,
+                "configured": t.configured,
+            }
+            for t in targets
+        ],
+        "detected_count": sum(1 for t in targets if t.detected),
+        "configured_count": sum(1 for t in targets if t.configured),
+    }
+
+
+@app.post("/api/v1/scanner/inject", tags=["Scanner"])
+async def inject_agent_api(
+    data: Dict[str, Any],
+    request: Request,
+    _token: str = Depends(verify_token),
+):
+    """Auto-inject Remote Context MCP configuration into a detected local agent."""
+    app_id = data.get("app_id")
+    use_stdio = bool(data.get("use_stdio", False))
+    sse_url = data.get("url") or str(request.url_for("mcp_sse_endpoint"))
+
+    targets = scan_agents()
+    target = next((t for t in targets if t.app_id == app_id), None)
+    if not target:
+        raise HTTPException(status_code=404, detail=f"Agent target '{app_id}' not found")
+
+    success = inject_mcp_server(
+        target=target,
+        sse_url=sse_url,
+        token=_token,
+        use_command_proxy=use_stdio,
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail=f"Failed to inject configuration into {target.name}")
+
+    return {
+        "status": "success",
+        "agent": target.name,
+        "config_path": str(target.config_path),
+        "configured": True,
+    }
+
+
+@app.post("/api/v1/scanner/inject-all", tags=["Scanner"])
+async def inject_all_agents_api(
+    request: Request,
+    data: Optional[Dict[str, Any]] = None,
+    _token: str = Depends(verify_token),
+):
+    """Auto-inject Remote Context MCP configuration into all detected agents."""
+    payload = data or {}
+    force = bool(payload.get("force", False))
+    use_stdio = bool(payload.get("use_stdio", False))
+    sse_url = payload.get("url") or str(request.url_for("mcp_sse_endpoint"))
+
+    targets = scan_agents()
+    results = []
+    for t in targets:
+        if t.detected and (force or not t.configured):
+            success = inject_mcp_server(
+                target=t,
+                sse_url=sse_url,
+                token=_token,
+                use_command_proxy=use_stdio,
+            )
+            results.append({
+                "agent": t.name,
+                "app_id": t.app_id,
+                "success": success,
+                "config_path": str(t.config_path),
+            })
+
+    return {
+        "status": "success",
+        "processed": len(results),
+        "successful": sum(1 for r in results if r["success"]),
+        "results": results,
+    }
+
+
+# ============================================================================
+# Auto-Sync & Projects Endpoints
+# ============================================================================
+
+@app.get("/api/v1/sync/status", tags=["Auto-Sync"])
+async def sync_status_api(
+    _token: str = Depends(verify_token),
+):
+    """Get status of auto-sync daemon and active projects."""
+    from src.syncer.daemon import AutoSyncDaemon
+    from src.syncer.collectors import get_all_active_projects
+
+    daemon = AutoSyncDaemon()
+    projects = get_all_active_projects()
+    return {
+        "status": "ready",
+        "last_cycle": daemon.state.get("last_cycle_info", {}),
+        "total_projects": len(projects),
+        "synced_sessions_total": len(daemon.state.get("synced_session_ids", {})),
+    }
+
+
+@app.get("/api/v1/sync/projects", tags=["Auto-Sync"])
+async def sync_projects_api(
+    _token: str = Depends(verify_token),
+):
+    """List all detected active projects across Codex, Cursor, Claude Desktop, and local filesystem."""
+    from src.syncer.collectors import get_all_active_projects
+
+    projects = get_all_active_projects()
+    return {"projects": projects, "count": len(projects)}
+
+
+@app.post("/api/v1/sync/trigger", tags=["Auto-Sync"])
+async def sync_trigger_api(
+    _token: str = Depends(verify_token),
+):
+    """Trigger an immediate cross-agent sync cycle on demand."""
+    from src.syncer.daemon import AutoSyncDaemon
+
+    daemon = AutoSyncDaemon(auth_token=_token)
+    result = daemon.run_sync_cycle()
+    return {
+        "status": "completed",
+        "result": result,
+    }
+
+
+# ============================================================================
+# Optional Direct REST API Endpoints (for web dashboards / curl)
+# ============================================================================
+
+@app.get("/api/v1/contexts", tags=["REST API"])
+async def list_contexts_api(
+    project: Optional[str] = None,
+    limit: int = 20,
+    _token: str = Depends(verify_token),
+):
+    """List contexts via REST."""
+    items = await context_store.list_all(project=project, limit=limit)
+    return {"contexts": items, "count": len(items)}
+
+
+@app.post("/api/v1/contexts", tags=["REST API"])
+async def save_context_api(
+    data: Dict[str, Any],
+    _token: str = Depends(verify_token),
+):
+    """Save or update context via REST."""
+    title = data.get("title")
+    content = data.get("content")
+    if not title or not content:
+        raise HTTPException(status_code=400, detail="Fields 'title' and 'content' are required")
+
+    result = await context_store.save(
+        title=title,
+        content=content,
+        tags=data.get("tags") or [],
+        project=data.get("project", "global"),
+        metadata=data.get("metadata") or {},
+    )
+    return result
+
+
+@app.post("/api/v1/contexts/search", tags=["REST API"])
+async def search_context_api(
+    data: Dict[str, Any],
+    _token: str = Depends(verify_token),
+):
+    """Semantic search via REST."""
+    query = data.get("query")
+    if not query:
+        raise HTTPException(status_code=400, detail="Field 'query' is required")
+
+    results = await context_store.search(
+        query=query,
+        project=data.get("project"),
+        tags=data.get("tags"),
+        limit=int(data.get("limit", 5)),
+        min_score=float(data.get("min_score", 0.25)),
+    )
+    return {"query": query, "results": results, "count": len(results)}
+
+
+@app.get("/api/v1/contexts/{context_id}", tags=["REST API"])
+async def get_context_api(
+    context_id: str,
+    _token: str = Depends(verify_token),
+):
+    """Get context details by ID or title."""
+    item = await context_store.get(context_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Context not found")
+    return item
+
+
+@app.delete("/api/v1/contexts/{context_id}", tags=["REST API"])
+async def delete_context_api(
+    context_id: str,
+    _token: str = Depends(verify_token),
+):
+    """Delete context by ID or title."""
+    deleted = await context_store.delete(context_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Context not found")
+    return {"status": "deleted", "id": context_id}

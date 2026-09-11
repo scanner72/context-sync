@@ -1,0 +1,52 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: context-sync-db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-context_db}
+      POSTGRES_USER: ${POSTGRES_USER:-context_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-context_password}
+    ports:
+      - "${POSTGRES_EXTERNAL_PORT:-5445}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-context_user} -d ${POSTGRES_DB:-context_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: context-sync-app
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-context_user}:${POSTGRES_PASSWORD:-context_password}@db:5432/${POSTGRES_DB:-context_db}
+      - AUTH_TOKEN=${AUTH_TOKEN:-change-me-to-a-secure-token}
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-fastembed}
+      - FASTEMBED_MODEL=${FASTEMBED_MODEL:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - HOST=0.0.0.0
+      - PORT=8000
+    ports:
+      - "${APP_PORT:-8200}:8000"
+    volumes:
+      - fastembed_cache:/root/.cache
+      - ./src:/app/src
+      - ./tests:/app/tests
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+  fastembed_cache:

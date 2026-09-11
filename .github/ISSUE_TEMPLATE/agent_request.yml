@@ -1,0 +1,23 @@
+name: "🤖 New Agent Support Request"
+description: "Request adapter support for an AI coding assistant or editor"
+labels: ["new-agent", "enhancement"]
+body:
+  - type: input
+    id: agent_name
+    attributes:
+      label: Agent / Editor Name
+      placeholder: "e.g. Aider, Continue.dev, Zed, Amazon Q"
+    validations:
+      required: true
+  - type: input
+    id: agent_url
+    attributes:
+      label: Project Website / Repository
+      placeholder: "https://..."
+    validations:
+      required: true
+  - type: textarea
+    id: config_details
+    attributes:
+      label: Configuration / MCP Details
+      description: Where does this agent store its config or chat history? Does it support MCP?
