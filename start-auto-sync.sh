@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # macOS and Linux runner for Context Sync Auto-Sync Daemon
 set -e
 
