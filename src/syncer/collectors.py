@@ -217,7 +217,15 @@ class CursorCollector:
     """Reads workspaces and chat history from Cursor IDE."""
 
     def __init__(self):
-        appdata = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+        is_mac = sys.platform == "darwin"
+        is_win = sys.platform.startswith("win")
+        if is_mac:
+            appdata = Path.home() / "Library" / "Application Support"
+        elif is_win:
+            appdata = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+        else:
+            appdata = Path.home() / ".config"
+
         self.workspace_storage = appdata / "Cursor" / "User" / "workspaceStorage"
         self.global_storage = appdata / "Cursor" / "User" / "globalStorage"
 
@@ -308,9 +316,18 @@ class ClaudeCollector:
     def __init__(self):
         self.home = Path.home()
         self.claude_json = self.home / ".claude.json"
-        local_app_data = Path(os.environ.get("LOCALAPPDATA", self.home / "AppData" / "Local"))
-        packages = glob.glob(str(local_app_data / "Packages" / "Claude_*" / "LocalCache" / "Roaming" / "Claude"))
-        self.desktop_dir = Path(packages[0]) if packages else None
+        is_mac = sys.platform == "darwin"
+        is_win = sys.platform.startswith("win")
+
+        if is_mac:
+            self.desktop_dir = self.home / "Library" / "Application Support" / "Claude"
+        elif is_win:
+            local_app_data = Path(os.environ.get("LOCALAPPDATA", self.home / "AppData" / "Local"))
+            packages = glob.glob(str(local_app_data / "Packages" / "Claude_*" / "LocalCache" / "Roaming" / "Claude"))
+            std_dir = Path(os.environ.get("APPDATA", self.home / "AppData" / "Roaming")) / "Claude"
+            self.desktop_dir = Path(packages[0]) if packages else std_dir
+        else:
+            self.desktop_dir = self.home / ".config" / "Claude"
 
     def is_available(self) -> bool:
         return self.claude_json.exists() or (self.desktop_dir is not None and self.desktop_dir.exists())
