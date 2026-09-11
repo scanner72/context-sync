@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
 
 # 🧠 Context Sync
 ### Universal Neural Memory & Context Synchronization Fabric for AI Coding Agents
@@ -117,16 +117,32 @@ flowchart TD
 
 Context Sync includes built-in auto-discovery, 1-click configuration injection, and conversation history collectors:
 
-| Agent / Editor | Transport | Config Path (Windows / macOS / Linux) | Status |
-|:---|:---:|:---|:---:|
-| **Claude Desktop** | `stdio` (`npx mcp-remote`) | `%APPDATA%\Claude\claude_desktop_config.json` | 🟢 Supported |
-| **Claude Code CLI** | `SSE` | `~/.claude.json` | 🟢 Supported |
-| **Cursor IDE** | `SSE` | `~/.cursor/mcp.json` | 🟢 Supported |
-| **OpenAI Codex** | `TOML` | `~/.codex/config.toml` | 🟢 Supported |
-| **Google Antigravity** | `SSE` | `~/.gemini/antigravity/mcp_config.json` | 🟢 Supported |
-| **Windsurf IDE** | `SSE` | `~/.codeium/windsurf/mcp_config.json` | 🟢 Supported |
-| **Cline (VS Code)** | `SSE` | `%APPDATA%\Code\User\...\cline_mcp_settings.json` | 🟢 Supported |
-| **Roo Code (VS Code)** | `SSE` | `%APPDATA%\Code\User\...\cline_mcp_settings.json` | 🟢 Supported |
+| Agent / Editor | Transport | macOS Path | Linux Path | Windows Path | Status |
+|:---|:---:|:---|:---|:---|:---:|
+| **Claude Desktop** | `stdio` | `~/Library/Application Support/Claude/claude_desktop_config.json` | `~/.config/Claude/claude_desktop_config.json` | `%APPDATA%\Claude\claude_desktop_config.json` | 🟢 Supported |
+| **Claude Code CLI** | `SSE` | `~/.claude.json` | `~/.claude.json` | `%USERPROFILE%\.claude.json` | 🟢 Supported |
+| **Cursor IDE** | `SSE` | `~/.cursor/mcp.json` | `~/.cursor/mcp.json` | `%USERPROFILE%\.cursor\mcp.json` | 🟢 Supported |
+| **OpenAI Codex** | `TOML` | `~/.codex/config.toml` | `~/.codex/config.toml` | `%USERPROFILE%\.codex\config.toml` | 🟢 Supported |
+| **Google Antigravity** | `SSE` | `~/.gemini/antigravity/mcp_config.json` | `~/.gemini/antigravity/mcp_config.json` | `%USERPROFILE%\.gemini\antigravity\mcp_config.json` | 🟢 Supported |
+| **Windsurf IDE** | `SSE` | `~/.codeium/windsurf/mcp_config.json` | `~/.codeium/windsurf/mcp_config.json` | `%USERPROFILE%\.codeium\windsurf\mcp_config.json` | 🟢 Supported |
+| **Cline (VS Code)** | `SSE` | `~/Library/Application Support/Code/User/...` | `~/.config/Code/User/...` | `%APPDATA%\Code\User\...` | 🟢 Supported |
+| **Roo Code (VS Code)** | `SSE` | `~/Library/Application Support/Code/User/...` | `~/.config/Code/User/...` | `%APPDATA%\Code\User\...` | 🟢 Supported |
+
+---
+
+## 🌐 Universal Cross-Platform Architecture
+
+Context Sync is engineered for 100% native execution across **macOS**, **Linux**, and **Windows**:
+
+| Component / Capability | 🍏 macOS (Apple Silicon M1–M4 & Intel) | 🐧 Linux (Ubuntu, Debian, Fedora, Arch) | 🪟 Windows (10, 11, WSL2) |
+|:---|:---|:---|:---|
+| **Server & Container** | Docker Desktop (Native `arm64` / `amd64`) | Docker Engine 24+ & Docker Compose | Docker Desktop / WSL2 |
+| **Vector Embedding Engine** | FastEmbed (Native ONNX CPU `arm64`) | FastEmbed (Native ONNX CPU `amd64`) | FastEmbed (Native ONNX CPU x64) |
+| **Database & Vectors** | PostgreSQL 16 + pgvector | PostgreSQL 16 + pgvector | PostgreSQL 16 + pgvector |
+| **1-Click Agent Connect** | `./connect-agents.sh` | `./connect-agents.sh` | `.\connect-agents.ps1` or `.bat` |
+| **Autonomous Background Sync** | `./start-auto-sync.sh` | `./start-auto-sync.sh` | `.\start-auto-sync.ps1` or `.bat` |
+| **Remote Deploy & Sync** | `./deploy-remote.sh`, `./sync-to-remote.sh` | `./deploy-remote.sh`, `./sync-to-remote.sh` | `.\deploy-remote.ps1`, `.\sync-to-remote.ps1` |
+| **File Normalization** | Native POSIX (`/`) | Native POSIX (`/`) | Auto-normalized (`\` -> `/`) |
 
 ---
 
@@ -148,22 +164,31 @@ docker compose up -d --build
 The Web Dashboard is now live at **`http://localhost:8200`** (or `http://localhost:8000` if configured).
 
 ### 2. Auto-Connect All Local Agents
-Run the auto-connect script:
+Run the native auto-connect script for your OS:
+- **macOS & Linux**:
+  ```bash
+  ./connect-agents.sh
+  # Or targeting a remote server:
+  ./connect-agents.sh http://10.10.10.11:8200/sse <YOUR_AUTH_TOKEN>
+  ```
 - **Windows (PowerShell)**:
   ```powershell
   .\connect-agents.ps1
-  ```
-- **macOS / Linux**:
-  ```bash
-  python -m src.scanner --url http://localhost:8200/sse --token your-token
+  # Or targeting a remote server:
+  .\connect-agents.ps1 -Url "http://10.10.10.11:8200/sse" -Token "<YOUR_AUTH_TOKEN>"
   ```
 - **Or via Web UI**: Open `http://localhost:8200` ➔ Go to **"Fleet & Scanner"** ➔ Click **"Find & Connect Agents"**.
 
 ### 3. Launch Autonomous Auto-Sync Daemon
 Keep project memory and `.cursorrules` / `CLAUDE.md` automatically synchronized across all running agents:
-```powershell
-.\start-auto-sync.ps1
-```
+- **macOS & Linux**:
+  ```bash
+  ./start-auto-sync.sh
+  ```
+- **Windows**:
+  ```powershell
+  .\start-auto-sync.ps1
+  ```
 
 ---
 

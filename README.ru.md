@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
 
 # 🧠 Context Sync
 ### Универсальная нейронная память и платформа синхронизации контекста для ИИ-ассистентов и кодинг-агентов
@@ -117,16 +117,32 @@ flowchart TD
 
 Context Sync включает встроенное автосканирование, подключение в 1 клик и сборщики истории диалогов:
 
-| Агент / IDE | Транспорт | Расположение конфига (Windows / macOS / Linux) | Статус |
-|:---|:---:|:---|:---:|
-| **Claude Desktop** | `stdio` (`npx mcp-remote`) | `%APPDATA%\Claude\claude_desktop_config.json` | 🟢 Поддерживается |
-| **Claude Code CLI** | `SSE` | `~/.claude.json` | 🟢 Поддерживается |
-| **Cursor IDE** | `SSE` | `~/.cursor/mcp.json` | 🟢 Поддерживается |
-| **OpenAI Codex** | `TOML` | `~/.codex/config.toml` | 🟢 Поддерживается |
-| **Google Antigravity** | `SSE` | `~/.gemini/antigravity/mcp_config.json` | 🟢 Поддерживается |
-| **Windsurf IDE** | `SSE` | `~/.codeium/windsurf/mcp_config.json` | 🟢 Поддерживается |
-| **Cline (VS Code)** | `SSE` | `%APPDATA%\Code\User\...\cline_mcp_settings.json` | 🟢 Поддерживается |
-| **Roo Code (VS Code)** | `SSE` | `%APPDATA%\Code\User\...\cline_mcp_settings.json` | 🟢 Поддерживается |
+| Агент / IDE | Транспорт | Путь в macOS | Путь в Linux | Путь в Windows | Статус |
+|:---|:---:|:---|:---|:---|:---:|
+| **Claude Desktop** | `stdio` | `~/Library/Application Support/Claude/claude_desktop_config.json` | `~/.config/Claude/claude_desktop_config.json` | `%APPDATA%\Claude\claude_desktop_config.json` | 🟢 Поддерживается |
+| **Claude Code CLI** | `SSE` | `~/.claude.json` | `~/.claude.json` | `%USERPROFILE%\.claude.json` | 🟢 Поддерживается |
+| **Cursor IDE** | `SSE` | `~/.cursor/mcp.json` | `~/.cursor/mcp.json` | `%USERPROFILE%\.cursor\mcp.json` | 🟢 Поддерживается |
+| **OpenAI Codex** | `TOML` | `~/.codex/config.toml` | `~/.codex/config.toml` | `%USERPROFILE%\.codex\config.toml` | 🟢 Поддерживается |
+| **Google Antigravity** | `SSE` | `~/.gemini/antigravity/mcp_config.json` | `~/.gemini/antigravity/mcp_config.json` | `%USERPROFILE%\.gemini\antigravity\mcp_config.json` | 🟢 Поддерживается |
+| **Windsurf IDE** | `SSE` | `~/.codeium/windsurf/mcp_config.json` | `~/.codeium/windsurf/mcp_config.json` | `%USERPROFILE%\.codeium\windsurf\mcp_config.json` | 🟢 Поддерживается |
+| **Cline (VS Code)** | `SSE` | `~/Library/Application Support/Code/User/...` | `~/.config/Code/User/...` | `%APPDATA%\Code\User\...` | 🟢 Поддерживается |
+| **Roo Code (VS Code)** | `SSE` | `~/Library/Application Support/Code/User/...` | `~/.config/Code/User/...` | `%APPDATA%\Code\User\...` | 🟢 Поддерживается |
+
+---
+
+## 🌐 Универсальная кроссплатформенная архитектура
+
+Context Sync спроектирован для 100% нативной работы на **macOS**, **Linux** и **Windows**:
+
+| Компонент / Платформа | 🍏 macOS (Apple Silicon M1–M4 & Intel) | 🐧 Linux (Ubuntu, Debian, Fedora, Arch) | 🪟 Windows (10, 11, WSL2) |
+|:---|:---|:---|:---|
+| **Сервер & Контейнеризация** | Docker Desktop (нативный `arm64` / `amd64`) | Docker Engine 24+ & Docker Compose | Docker Desktop / WSL2 |
+| **Векторный движок** | FastEmbed (Нативный ONNX CPU `arm64`) | FastEmbed (Нативный ONNX CPU `amd64`) | FastEmbed (Нативный ONNX CPU x64) |
+| **База данных и векторные индексы** | PostgreSQL 16 + pgvector | PostgreSQL 16 + pgvector | PostgreSQL 16 + pgvector |
+| **Автоподключение агентов в 1 клик** | `./connect-agents.sh` | `./connect-agents.sh` | `.\connect-agents.ps1` или `.bat` |
+| **Автономный фоновый демон** | `./start-auto-sync.sh` | `./start-auto-sync.sh` | `.\start-auto-sync.ps1` или `.bat` |
+| **Удаленный деплой и синхронизация** | `./deploy-remote.sh`, `./sync-to-remote.sh` | `./deploy-remote.sh`, `./sync-to-remote.sh` | `.\deploy-remote.ps1`, `.\sync-to-remote.ps1` |
+| **Нормализация путей** | Нативный POSIX (`/`) | Нативный POSIX (`/`) | Авто-нормализация (`\` ➔ `/`) |
 
 ---
 
@@ -148,22 +164,31 @@ docker compose up -d --build
 Веб-дашборд доступен по адресу **`http://localhost:8200`** (или `http://localhost:8000` в зависимости от `.env`).
 
 ### 2. Автоматическое подключение всех локальных агентов
-Запустите скрипт автосканирования и внедрения MCP:
+Запустите скрипт автосканирования и внедрения MCP для вашей ОС:
+- **macOS и Linux**:
+  ```bash
+  ./connect-agents.sh
+  # Либо с указанием удаленного сервера:
+  ./connect-agents.sh http://10.10.10.11:8200/sse <ВАШ_AUTH_TOKEN>
+  ```
 - **Windows (PowerShell)**:
   ```powershell
   .\connect-agents.ps1
-  ```
-- **macOS / Linux**:
-  ```bash
-  python -m src.scanner --url http://localhost:8200/sse --token your-token
+  # Либо с указанием удаленного сервера:
+  .\connect-agents.ps1 -Url "http://10.10.10.11:8200/sse" -Token "<ВАШ_AUTH_TOKEN>"
   ```
 - **Либо через Веб-интерфейс**: откройте `http://localhost:8200` ➔ раздел **«Флот и сканер»** ➔ нажмите **«Найти и подключить агентов»**.
 
 ### 3. Запуск автономного фонового демона
 Для непрерывной автоматической синхронизации чатов и обновления `.cursorrules` / `CLAUDE.md`:
-```powershell
-.\start-auto-sync.ps1
-```
+- **macOS и Linux**:
+  ```bash
+  ./start-auto-sync.sh
+  ```
+- **Windows**:
+  ```powershell
+  .\start-auto-sync.ps1
+  ```
 
 ---
 
