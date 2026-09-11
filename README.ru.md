@@ -3,7 +3,7 @@
 # 🧠 Context Sync
 ### Универсальная нейронная память и платформа синхронизации контекста для ИИ-ассистентов и кодинг-агентов
 
-[![CI](https://github.com/your-org/context-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/context-sync/actions)
+[![CI](https://github.com/scanner72/context-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/scanner72/context-sync/actions)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-4169E1.svg?logo=postgresql&logoColor=white)](https://github.com/pgvector/pgvector)
@@ -151,7 +151,7 @@ Context Sync спроектирован для 100% нативной работ�
 ### 1. Запуск через Docker Compose
 Склонируйте репозиторий и запустите контейнеры:
 ```bash
-git clone https://github.com/your-org/context-sync.git
+git clone https://github.com/scanner72/context-sync.git
 cd context-sync
 
 # Создание конфигурационного файла
@@ -276,7 +276,7 @@ python -m pytest tests/ -v
 
 Мы приветствуем вклад сообщества! Ознакомьтесь с **[CONTRIBUTING.md](CONTRIBUTING.md)** для руководства по код-стайлу, тестам и PR.
 
-1. Форкните репозиторий (`https://github.com/your-org/context-sync/fork`)
+1. Форкните репозиторий (`https://github.com/scanner72/context-sync/fork`)
 2. Создайте ветку (`git checkout -b feature/new-cool-agent`)
 3. Закоммитьте изменения (`git commit -m 'feat: add adapter for NewCoolAgent'`)
 4. Отправьте в ветку (`git push origin feature/new-cool-agent`)

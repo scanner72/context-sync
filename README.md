@@ -3,7 +3,7 @@
 # 🧠 Context Sync
 ### Universal Neural Memory & Context Synchronization Fabric for AI Coding Agents
 
-[![CI](https://github.com/your-org/context-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/context-sync/actions)
+[![CI](https://github.com/scanner72/context-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/scanner72/context-sync/actions)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-4169E1.svg?logo=postgresql&logoColor=white)](https://github.com/pgvector/pgvector)
@@ -151,7 +151,7 @@ Context Sync is engineered for 100% native execution across **macOS**, **Linux**
 ### 1. Launch with Docker Compose
 Clone the repository and start the services:
 ```bash
-git clone https://github.com/your-org/context-sync.git
+git clone https://github.com/scanner72/context-sync.git
 cd context-sync
 
 # Copy environment file
@@ -276,7 +276,7 @@ python -m pytest tests/ -v
 
 Contributions are warmly welcome! Please see **[CONTRIBUTING.md](CONTRIBUTING.md)** for detailed development guidelines, code standards, and PR workflows.
 
-1. Fork the Project (`https://github.com/your-org/context-sync/fork`)
+1. Fork the Project (`https://github.com/scanner72/context-sync/fork`)
 2. Create your Feature Branch (`git checkout -b feature/amazing-agent`)
 3. Commit your Changes (`git commit -m 'feat: add adapter for NewAgent'`)
 4. Push to the Branch (`git push origin feature/amazing-agent`)

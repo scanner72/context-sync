@@ -8,7 +8,7 @@ Thank you for your interest in contributing to **Context Sync**! We welcome cont
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your-org/context-sync.git
+   git clone https://github.com/scanner72/context-sync.git
    cd context-sync
    ```
 
