@@ -99,14 +99,110 @@ Default Development Token: `ctx_secret_token_7f9a8b1c4e2d3f5a`
 
 ---
 
-## 3. MCP JSON-RPC Tools
+## 3. Atomic Facts & Conflict Resolution API (FLCR)
 
-When connected via `/sse`, the following tools are exposed via the standard MCP protocol:
+The Fact-Level Conflict Resolution (FLCR) engine manages version-controlled atomic project facts (triplets: `Entity -> Attribute -> Value`) with conflict detection policies (`lww` and `authority`).
 
+### 3.1 List Active Facts (Truth-Table)
+- **Endpoint**: `GET /api/v1/facts`
+- **Query Params**:
+  - `project` (str, optional, default: `"global"`)
+  - `entity` (str, optional): Filter by entity (e.g., `"backend"`, `"database"`)
+- **Response (HTTP 200)**:
+  ```json
+  {
+    "project": "global",
+    "count": 2,
+    "facts": [
+      {
+        "id": "7f8b9c1d-2e3a-4b5c-6d7e-8f9a0b1c2d3e",
+        "project": "global",
+        "entity": "backend",
+        "attribute": "port",
+        "value": 8200,
+        "source_agent": "Antigravity",
+        "confidence": 1.0,
+        "version": 2,
+        "is_active": true,
+        "superseded_by": null,
+        "conflict_flag": false,
+        "conflict_details": null,
+        "created_at": "2026-09-13T17:40:00Z",
+        "updated_at": "2026-09-13T17:45:00Z"
+      }
+    ]
+  }
+  ```
+
+### 3.2 Set or Update Fact
+- **Endpoint**: `POST /api/v1/facts`
+- **Request Body**:
+  ```json
+  {
+    "entity": "database",
+    "attribute": "port",
+    "value": 5445,
+    "project": "context_sync",
+    "source_agent": "Antigravity",
+    "confidence": 1.0,
+    "policy": "lww"
+  }
+  ```
+- **Supported Policies**:
+  - `lww` (Last-Write-Wins): Automatically supersedes older fact versions.
+  - `authority`: Rejects overwrite if incoming source authority is lower than current author. Sets `conflict_flag: true`.
+- **Response (HTTP 200)**:
+  ```json
+  {
+    "id": "9a8b7c6d-5e4f-3a2b-1c0d-e9f8a7b6c5d4",
+    "action": "superseded_previous",
+    "conflict_detected": false,
+    "version": 2,
+    "previous_value": 5432
+  }
+  ```
+
+### 3.3 Get Active Fact
+- **Endpoint**: `GET /api/v1/facts/{entity}/{attribute}`
+- **Query Params**: `project` (str, default: `"global"`)
+- **Response (HTTP 200)**: Returns the active `ProjectFact` object.
+
+### 3.4 Audit Fact Version History
+- **Endpoint**: `GET /api/v1/facts/{entity}/{attribute}/history`
+- **Query Params**: `project` (str, default: `"global"`)
+- **Response (HTTP 200)**: Complete chronological audit trail showing all previous versions, agents, and timestamps.
+
+### 3.5 Manually Resolve Contested Conflict
+- **Endpoint**: `POST /api/v1/facts/resolve`
+- **Request Body**:
+  ```json
+  {
+    "fact_id": "9a8b7c6d-5e4f-3a2b-1c0d-e9f8a7b6c5d4",
+    "chosen_value": 8200,
+    "resolver_agent": "user"
+  }
+  ```
+- **Response (HTTP 200)**: Resolves the conflict flag and updates the truth-table.
+
+---
+
+## 4. MCP JSON-RPC Tools
+
+When connected via `/sse` or stdio, the following tools are exposed via the standard MCP protocol:
+
+### Context & Knowledge Base Tools
 | Tool Name | Parameters | Description |
 |---|---|---|
-| `context_save` | `title` (str), `content` (str), `tags` (list[str], opt), `project` (str, opt) | Persists and indexes knowledge chunk |
-| `context_search` | `query` (str), `project` (str, opt), `limit` (int, opt), `threshold` (float, opt) | Semantic similarity vector search |
-| `context_get` | `context_id` (str) | Retrieves complete content and metadata |
-| `context_list` | `project` (str, opt), `limit` (int, opt) | Paginated list of stored memories |
-| `context_delete` | `context_id` (str) | Removes an item from the vector store |
+| `context_save` | `title` (str), `content` (str), `tags` (list[str], opt), `project` (str, opt), `metadata` (obj, opt) | Persists and indexes knowledge chunk with FastEmbed vector. |
+| `context_search` | `query` (str), `project` (str, opt), `tags` (list[str], opt), `limit` (int, opt), `min_score` (float, opt) | Cosine similarity semantic vector search. |
+| `context_get` | `context_id` (str) | Retrieves complete content and metadata by UUID or title. |
+| `context_list` | `project` (str, opt), `limit` (int, opt) | Paginated list of stored memories. |
+| `context_delete` | `context_id` (str) | Removes an item from the context store. |
+
+### Fact-Level Conflict Resolution (FLCR) Tools
+| Tool Name | Parameters | Description |
+|---|---|---|
+| `fact_set` | `entity` (str), `attribute` (str), `value` (any), `project` (str, opt), `confidence` (float, opt), `policy` (`"lww"` \| `"authority"`, opt) | Atomically stores/updates a fact with versioning and conflict policy. |
+| `fact_get` | `entity` (str), `attribute` (str), `project` (str, opt) | Retrieves current active fact for given entity & attribute. |
+| `fact_list` | `project` (str, opt), `entity` (str, opt) | Returns full project Truth-Table of active facts. |
+| `fact_history` | `entity` (str), `attribute` (str), `project` (str, opt) | Returns complete audit trail of past versions and conflicts. |

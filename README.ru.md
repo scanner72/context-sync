@@ -287,11 +287,21 @@ Context Sync оптимизирован для развертывания на �
 python -m pytest tests/ -v
 ============================== 28 passed in 2.00s ==============================
 ```
-```
+
+---
+
+## 📚 Документация
+
+Подробные технические руководства доступны в директории [`docs/`](docs/):
+- **[Справочник API: REST & MCP](docs/api-reference.ru.md)** ([English version](docs/api-reference.md)): Полная спецификация эндпоинтов, инструментов FLCR и форматов JSON-RPC.
+- **[Архитектура и системный дизайн](docs/architecture.ru.md)** ([English version](docs/architecture.md)): HNSW-индексация в pgvector, устройство движка разрешения конфликтов фактов и локальный FastEmbed.
+- **[Настройка агентов и IDE](docs/agents-setup.md)**: Пошаговая интеграция с Cursor, Claude Desktop, Claude Code, OpenAI Codex и Antigravity.
+- **[Автономный демон синхронизации](docs/auto-sync.md)**: Описание фонового сканера и безопасной инъекции правил в проекты.
 
 ---
 
 ## 🤝 Участие в разработке
+
 
 Мы приветствуем вклад сообщества! Ознакомьтесь с **[CONTRIBUTING.md](CONTRIBUTING.md)** для руководства по код-стайлу, тестам и PR.
 

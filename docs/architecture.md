@@ -104,7 +104,16 @@ The daemon bridges static project rules with dynamic agent activity:
 3. **Digest Synthesis**: Formats the latest cross-agent achievements, pending tasks, and architecture decisions into a markdown summary.
 4. **Non-Destructive Marker Injection**: Updates `AGENTS.md` and `.cursorrules` inside matching project directories between `<!-- CONTEXT-SYNC-START -->` and `<!-- CONTEXT-SYNC-END -->` without overwriting custom prompt instructions.
 
+### 2.5 Fact-Level Conflict Resolution (FLCR) Engine (`src/facts.py`)
+Standard document stores suffer from catastrophic knowledge drift when independent agents modify isolated parameters within larger documents. FLCR introduces atomic fact primitives:
+- **Atomic Triplet**: Every project invariant is stored as `(project, entity, attribute) -> value` with a strictly monotonically increasing `version` counter and boolean `is_active` state.
+- **Conflict Resolution Strategies**:
+  - **LWW (Last-Write-Wins with Audit Trail)**: Active facts are safely transitioned to `is_active=False` with a pointer to `superseded_by`, creating a permanent lineage graph of configuration evolution.
+  - **Authority Hierarchy**: Sources carry defined authority weights (`user: 100`, `architect: 80`, `agent: 50`, `worker: 10`). Changes from subordinate agents cannot overwrite human decisions without explicit manual verification, raising `conflict_flag = True`.
+- **Truth-Table Injection**: Active facts are automatically compiled into a clean Markdown table and injected into the dynamic section of `AGENTS.md` and `CLAUDE.md`.
+
 ---
+
 
 ## 3. Security and Authentication Model
 

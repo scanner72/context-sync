@@ -291,7 +291,18 @@ python -m pytest tests/ -v
 
 ---
 
+## 📚 Documentation
+
+Detailed guides and technical references are available in the [`docs/`](docs/) directory:
+- **[REST & MCP API Reference](docs/api-reference.md)** ([Русская версия](docs/api-reference.ru.md)): Complete schema for all endpoints, FLCR tools, and JSON-RPC methods.
+- **[Architecture & System Design](docs/architecture.md)** ([Русская версия](docs/architecture.ru.md)): Deep dive into pgvector HNSW indexing, FLCR mechanics, and FastEmbed local inference.
+- **[Agent Setup Guide](docs/agents-setup.md)**: Step-by-step instructions for Cursor, Claude Desktop, Claude Code, OpenAI Codex, and Antigravity.
+- **[Auto-Sync Daemon Guide](docs/auto-sync.md)**: Details on background workspace discovery and safe rules injection.
+
+---
+
 ## 🤝 Contributing
+
 
 Contributions are warmly welcome! Please see **[CONTRIBUTING.md](CONTRIBUTING.md)** for detailed development guidelines, code standards, and PR workflows.
 
