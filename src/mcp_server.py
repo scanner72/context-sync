@@ -4,6 +4,7 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 from src.context_store import context_store
+from src.facts import fact_store
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +133,112 @@ TOOLS = [
             "required": ["context_id"],
         },
     },
+    {
+        "name": "fact_set",
+        "description": (
+            "Store or update an atomic project fact (e.g. backend.port=8200, db.type=postgres) "
+            "with versioning and conflict resolution across all AI agents."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "entity": {
+                    "type": "string",
+                    "description": "Entity name (e.g. 'backend', 'database', 'auth', 'frontend').",
+                },
+                "attribute": {
+                    "type": "string",
+                    "description": "Attribute or property (e.g. 'port', 'type', 'jwt_algorithm').",
+                },
+                "value": {
+                    "description": "The atomic value (number, string, boolean, or json object).",
+                },
+                "project": {
+                    "type": "string",
+                    "description": "Project identifier. Defaults to 'global'.",
+                    "default": "global",
+                },
+                "confidence": {
+                    "type": "number",
+                    "description": "Confidence score between 0.0 and 1.0 (default 1.0).",
+                    "default": 1.0,
+                },
+                "policy": {
+                    "type": "string",
+                    "description": "Conflict resolution policy: 'lww' (Last-Write-Wins) or 'authority'. Default is 'lww'.",
+                    "enum": ["lww", "authority"],
+                    "default": "lww",
+                },
+            },
+            "required": ["entity", "attribute", "value"],
+        },
+    },
+    {
+        "name": "fact_get",
+        "description": "Retrieve the current active fact for a given entity and attribute.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "entity": {
+                    "type": "string",
+                    "description": "Entity name.",
+                },
+                "attribute": {
+                    "type": "string",
+                    "description": "Attribute name.",
+                },
+                "project": {
+                    "type": "string",
+                    "description": "Project identifier. Defaults to 'global'.",
+                    "default": "global",
+                },
+            },
+            "required": ["entity", "attribute"],
+        },
+    },
+    {
+        "name": "fact_list",
+        "description": "List all active atomic facts and conventions for a project (Truth-Table).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {
+                    "type": "string",
+                    "description": "Project identifier. Defaults to 'global'.",
+                    "default": "global",
+                },
+                "entity": {
+                    "type": "string",
+                    "description": "Optional entity name to filter by.",
+                },
+            },
+        },
+    },
+    {
+        "name": "fact_history",
+        "description": "Retrieve the audit and version history of an atomic fact to track past changes and conflicts.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "entity": {
+                    "type": "string",
+                    "description": "Entity name.",
+                },
+                "attribute": {
+                    "type": "string",
+                    "description": "Attribute name.",
+                },
+                "project": {
+                    "type": "string",
+                    "description": "Project identifier. Defaults to 'global'.",
+                    "default": "global",
+                },
+            },
+            "required": ["entity", "attribute"],
+        },
+    },
 ]
+
 
 RESOURCES = [
     {
@@ -309,8 +415,80 @@ class MCPServerHandler:
                 "message": f"Context '{context_id}' {'deleted' if deleted else 'not found'}.",
             }, indent=2)
 
+        elif name == "fact_set":
+            entity = args.get("entity")
+            attribute = args.get("attribute")
+            value = args.get("value")
+            project = args.get("project") or "global"
+            confidence = float(args.get("confidence", 1.0))
+            policy = args.get("policy", "lww")
+            source_agent = client_info or "unknown"
+
+            if not entity or not attribute:
+                raise ValueError("Both 'entity' and 'attribute' are required for fact_set")
+
+            fact = await fact_store.set_fact(
+                entity=entity,
+                attribute=attribute,
+                value=value,
+                project=project,
+                source_agent=source_agent,
+                confidence=confidence,
+                policy=policy,
+            )
+            return json.dumps({
+                "status": "success",
+                "action": fact.get("action"),
+                "conflict_detected": fact.get("conflict_detected"),
+                "fact": fact,
+            }, ensure_ascii=False, indent=2)
+
+        elif name == "fact_get":
+            entity = args.get("entity")
+            attribute = args.get("attribute")
+            project = args.get("project") or "global"
+
+            if not entity or not attribute:
+                raise ValueError("Both 'entity' and 'attribute' are required for fact_get")
+
+            fact = await fact_store.get_fact(entity=entity, attribute=attribute, project=project)
+            if not fact:
+                return json.dumps({
+                    "status": "not_found",
+                    "message": f"No active fact found for entity '{entity}' and attribute '{attribute}' in project '{project}'.",
+                }, indent=2)
+            return json.dumps({"status": "success", "fact": fact}, ensure_ascii=False, indent=2)
+
+        elif name == "fact_list":
+            project = args.get("project") or "global"
+            entity = args.get("entity")
+
+            facts = await fact_store.list_facts(project=project, entity=entity, only_active=True)
+            return json.dumps({
+                "status": "success",
+                "count": len(facts),
+                "project": project,
+                "facts": facts,
+            }, ensure_ascii=False, indent=2)
+
+        elif name == "fact_history":
+            entity = args.get("entity")
+            attribute = args.get("attribute")
+            project = args.get("project") or "global"
+
+            if not entity or not attribute:
+                raise ValueError("Both 'entity' and 'attribute' are required for fact_history")
+
+            history = await fact_store.get_fact_history(entity=entity, attribute=attribute, project=project)
+            return json.dumps({
+                "status": "success",
+                "count": len(history),
+                "history": history,
+            }, ensure_ascii=False, indent=2)
+
         else:
             raise ValueError(f"Unknown tool: {name}")
+
 
     def _success_response(self, msg_id: Any, result: Any) -> Dict[str, Any]:
         return {

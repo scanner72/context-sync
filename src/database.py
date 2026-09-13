@@ -4,6 +4,7 @@ from typing import AsyncGenerator
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import text
+from sqlalchemy.pool import NullPool
 
 from src.config import settings
 from src.models import Base
@@ -12,8 +13,7 @@ engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,
     future=True,
-    pool_size=10,
-    max_overflow=20,
+    poolclass=NullPool,
 )
 
 async_session_maker = async_sessionmaker(
@@ -21,6 +21,8 @@ async_session_maker = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False,
 )
+
+
 
 
 async def init_db() -> None:

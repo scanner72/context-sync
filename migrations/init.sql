@@ -31,3 +31,29 @@ ON contexts (project);
 -- Full-text search index for hybrid ranking
 CREATE INDEX IF NOT EXISTS idx_contexts_fts 
 ON contexts USING gin (to_tsvector('simple', title || ' ' || content));
+
+-- Atomic project facts table (FLCR: Fact-Level Conflict Resolution)
+CREATE TABLE IF NOT EXISTS project_facts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    project VARCHAR(128) NOT NULL DEFAULT 'global',
+    entity VARCHAR(128) NOT NULL,
+    attribute VARCHAR(128) NOT NULL,
+    value JSONB NOT NULL,
+    source_agent VARCHAR(128) NOT NULL DEFAULT 'unknown',
+    confidence DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    version INTEGER NOT NULL DEFAULT 1,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    superseded_by UUID REFERENCES project_facts(id),
+    conflict_flag BOOLEAN NOT NULL DEFAULT false,
+    conflict_details JSONB DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE INDEX IF NOT EXISTS idx_project_facts_lookup 
+ON project_facts (project, entity, attribute);
+
+CREATE INDEX IF NOT EXISTS idx_project_facts_active 
+ON project_facts (project, is_active);
+

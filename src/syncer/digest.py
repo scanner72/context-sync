@@ -24,6 +24,7 @@ def format_digest_block(
     recent_sessions: List[Dict[str, Any]],
     active_agents: List[str],
     dashboard_url: str = "http://localhost:8000",
+    facts_markdown: Optional[str] = None,
 ) -> str:
     """Build standardized Markdown block containing cross-agent digest."""
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -54,6 +55,12 @@ def format_digest_block(
             if summary_snippet and summary_snippet != title:
                 lines.append(f"  > _{summary_snippet}_")
 
+    if facts_markdown and facts_markdown.strip():
+        lines.extend([
+            "",
+            facts_markdown.strip(),
+        ])
+
     lines.extend([
         "",
         "### 🧠 Центральная память проекта:",
@@ -64,6 +71,7 @@ def format_digest_block(
     ])
 
     return "\n".join(lines)
+
 
 
 def inject_digest_into_file(target_file: Path, digest_block: str) -> bool:

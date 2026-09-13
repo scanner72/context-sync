@@ -18,6 +18,7 @@ from src.config import settings
 from src.database import init_db
 from src.mcp_server import mcp_handler
 from src.context_store import context_store
+from src.facts import fact_store
 from src.fleet import fleet_tracker
 from src.scanner import scan_agents, inject_mcp_server
 
@@ -540,3 +541,91 @@ async def delete_context_api(
     if not deleted:
         raise HTTPException(status_code=404, detail="Context not found")
     return {"status": "deleted", "id": context_id}
+
+
+# ============================================================================
+# Atomic Facts & Conflict Resolution API (FLCR)
+# ============================================================================
+
+@app.get("/api/v1/facts", tags=["Facts API"])
+async def list_facts_api(
+    project: str = "global",
+    entity: Optional[str] = None,
+    _token: str = Depends(verify_token),
+):
+    """List active atomic project facts (Truth-Table)."""
+    facts = await fact_store.list_facts(project=project, entity=entity, only_active=True)
+    return {"project": project, "count": len(facts), "facts": facts}
+
+
+@app.post("/api/v1/facts", tags=["Facts API"])
+async def set_fact_api(
+    data: Dict[str, Any],
+    _token: str = Depends(verify_token),
+):
+    """Set or update an atomic fact with conflict resolution."""
+    entity = data.get("entity")
+    attribute = data.get("attribute")
+    value = data.get("value")
+    if not entity or not attribute or value is None:
+        raise HTTPException(status_code=400, detail="'entity', 'attribute', and 'value' are required")
+
+    result = await fact_store.set_fact(
+        entity=entity,
+        attribute=attribute,
+        value=value,
+        project=data.get("project", "global"),
+        source_agent=data.get("source_agent", "api"),
+        confidence=float(data.get("confidence", 1.0)),
+        policy=data.get("policy", "lww"),
+    )
+    return result
+
+
+@app.get("/api/v1/facts/{entity}/{attribute}", tags=["Facts API"])
+async def get_fact_api(
+    entity: str,
+    attribute: str,
+    project: str = "global",
+    _token: str = Depends(verify_token),
+):
+    """Get the current active fact for an entity and attribute."""
+    fact = await fact_store.get_fact(entity=entity, attribute=attribute, project=project)
+    if not fact:
+        raise HTTPException(status_code=404, detail="Fact not found")
+    return fact
+
+
+@app.get("/api/v1/facts/{entity}/{attribute}/history", tags=["Facts API"])
+async def get_fact_history_api(
+    entity: str,
+    attribute: str,
+    project: str = "global",
+    _token: str = Depends(verify_token),
+):
+    """Get full audit and version history for an atomic fact."""
+    history = await fact_store.get_fact_history(entity=entity, attribute=attribute, project=project)
+    return {"entity": entity, "attribute": attribute, "history": history, "count": len(history)}
+
+
+@app.post("/api/v1/facts/resolve", tags=["Facts API"])
+async def resolve_fact_api(
+    data: Dict[str, Any],
+    _token: str = Depends(verify_token),
+):
+    """Explicitly resolve a contested fact conflict."""
+    fact_id = data.get("fact_id")
+    chosen_value = data.get("chosen_value")
+    resolver_agent = data.get("resolver_agent", "user")
+    if not fact_id or chosen_value is None:
+        raise HTTPException(status_code=400, detail="'fact_id' and 'chosen_value' are required")
+
+    resolved = await fact_store.resolve_conflict(
+        fact_id=fact_id,
+        chosen_value=chosen_value,
+        resolver_agent=resolver_agent,
+    )
+    if not resolved:
+        raise HTTPException(status_code=404, detail="Fact not found")
+    return resolved
+

@@ -235,6 +235,24 @@ Safely remove outdated or superseded knowledge items.
 
 ---
 
+## ⚡ Fact-Level Conflict Resolution (FLCR)
+
+ContextSync prevents knowledge drift by maintaining an atomic, version-controlled **Fact Truth-Table** across all AI agents:
+
+* **Atomic Triplets (`Entity -> Attribute -> Value`)**: Instead of overwriting entire documents, agents can register precise parameters (e.g. `backend.port=8200`, `database.engine=postgresql`).
+* **Conflict Policies**:
+  * `LWW (Last-Write-Wins)`: Increments versioning (`v1 -> v2`) while keeping a complete audit trail (`fact_history`) and explicit links to superseded facts (`superseded_by`).
+  * `Authority Policy`: Prioritizes sources (`User/Human (100)` > `Architect/Lead (80)` > `Agent (50)` > `Worker (10)`). Changes from lower-ranked agents cannot overwrite human decisions and are flagged (`conflict_flag = True`) for review.
+* **Auto Truth-Table Injection**: Active facts are automatically rendered as clean Markdown tables in `AGENTS.md` and `CLAUDE.md`.
+
+### Dedicated MCP Fact Tools:
+* `fact_set`: Store or update an atomic fact with configurable conflict policy (`lww` or `authority`).
+* `fact_get`: Fetch current active value for any entity and attribute.
+* `fact_list`: Retrieve the complete active Truth-Table for a project.
+* `fact_history`: Inspect the full version audit trail and resolved conflicts.
+
+---
+
 ## 🌐 Live Fleet & Web Dashboard
 
 Open `http://localhost:8200` to access the real-time management dashboard:
@@ -263,12 +281,13 @@ Context Sync is designed to run seamlessly on remote VPS or home lab servers (e.
 
 ## 🧪 Testing & Verification
 
-Context Sync maintains a comprehensive test suite covering FastEmbed vectors, MCP JSON-RPC handlers, fleet tracking, scanner injection, and auto-sync collectors:
+Context Sync maintains a comprehensive test suite covering FastEmbed vectors, FLCR versioning, MCP JSON-RPC handlers, fleet tracking, scanner injection, and auto-sync collectors:
 
 ```bash
 python -m pytest tests/ -v
-============================== 23 passed in 0.85s ==============================
+============================== 28 passed in 2.00s ==============================
 ```
+
 
 ---
 
