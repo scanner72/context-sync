@@ -5,6 +5,8 @@ import logging
 from typing import Any, Dict, List, Optional
 from src.context_store import context_store
 from src.facts import fact_store
+from src.skills import skills_store
+from src.mcp_registry import mcp_registry
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +239,160 @@ TOOLS = [
             "required": ["entity", "attribute"],
         },
     },
+    {
+        "name": "skill_publish",
+        "description": (
+            "Publish or update an AI agent skill (SKILL.md instructions, triggers, and bundled scripts) "
+            "into the centralized fleet repository for cross-agent reuse."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Unique identifier of the skill (e.g. 'docker-deploy', 'git-workflow').",
+                },
+                "content_md": {
+                    "type": "string",
+                    "description": "Full Markdown content of the SKILL.md file.",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Short summary of what this skill enables.",
+                },
+                "version": {
+                    "type": "string",
+                    "description": "Semantic version string (default '1.0.0').",
+                    "default": "1.0.0",
+                },
+                "files_bundle": {
+                    "type": "object",
+                    "description": "Optional mapping of relative filepaths to file content (scripts, templates).",
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of tags for filtering (e.g. ['docker', 'devops']).",
+                },
+            },
+            "required": ["name", "content_md"],
+        },
+    },
+    {
+        "name": "skill_list",
+        "description": "Browse and search available skills across the AI agent fleet.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "search": {
+                    "type": "string",
+                    "description": "Keyword to search in skill name or description.",
+                },
+                "tag": {
+                    "type": "string",
+                    "description": "Filter by specific tag.",
+                },
+            },
+        },
+    },
+    {
+        "name": "skill_get",
+        "description": "Fetch the complete specification, instructions, and bundled files of a skill.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the skill to fetch.",
+                },
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "skill_install",
+        "description": (
+            "Install a skill directly into an agent's local filesystem "
+            "(supports 'cursor', 'claude', 'antigravity', 'codex', 'windsurf', or 'all')."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the skill to install.",
+                },
+                "target_agent": {
+                    "type": "string",
+                    "description": "Target agent ID ('cursor', 'claude', 'antigravity', 'codex', 'windsurf', or 'all').",
+                    "default": "all",
+                },
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "mcp_server_publish",
+        "description": (
+            "Register or share an external MCP server configuration (command, args, env, or sse url) "
+            "into the fleet registry so all agents can use it."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Unique name of the MCP server (e.g. 'github', 'postgres', 'filesystem').",
+                },
+                "transport": {
+                    "type": "string",
+                    "enum": ["stdio", "sse"],
+                    "description": "Transport mechanism: 'stdio' (CLI process) or 'sse' (remote URL).",
+                },
+                "config": {
+                    "type": "object",
+                    "description": "Configuration object: {command, args, env} for stdio, or {url, headers} for sse.",
+                },
+            },
+            "required": ["name", "transport", "config"],
+        },
+    },
+    {
+        "name": "mcp_server_list",
+        "description": "List all validated external MCP servers available in the fleet registry.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "only_active": {
+                    "type": "boolean",
+                    "description": "Whether to return only active servers (default true).",
+                    "default": True,
+                },
+
+            },
+        },
+    },
+    {
+        "name": "mcp_server_install",
+        "description": "Inject an MCP server from the registry into local agent config files (or all detected agents).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the MCP server to install.",
+                },
+                "target_agent": {
+                    "type": "string",
+                    "description": "Target agent app ID ('cursor', 'claude-desktop', 'claude-code', 'antigravity', etc., or 'all').",
+                    "default": "all",
+                },
+            },
+            "required": ["name"],
+        },
+    },
 ]
+
 
 
 RESOURCES = [
@@ -486,8 +641,113 @@ class MCPServerHandler:
                 "history": history,
             }, ensure_ascii=False, indent=2)
 
+        elif name == "skill_publish":
+            s_name = args.get("name")
+            content_md = args.get("content_md")
+            desc = args.get("description")
+            version = args.get("version", "1.0.0")
+            files_bundle = args.get("files_bundle") or {}
+            tags = args.get("tags") or []
+            source_agent = client_info or "unknown"
+
+            if not s_name or not content_md:
+                raise ValueError("Both 'name' and 'content_md' are required for skill_publish")
+
+            res = await skills_store.publish_skill(
+                name=s_name,
+                content_md=content_md,
+                description=desc,
+                version=version,
+                files_bundle=files_bundle,
+                source_agent=source_agent,
+                tags=tags,
+            )
+            return json.dumps({
+                "status": "success",
+                "action": res.get("action"),
+                "skill": res,
+                "message": f"Successfully published skill '{s_name}' (v{version}).",
+            }, ensure_ascii=False, indent=2)
+
+        elif name == "skill_list":
+            search = args.get("search")
+            tag = args.get("tag")
+            skills = await skills_store.list_skills(tag=tag, search=search)
+            return json.dumps({
+                "status": "success",
+                "count": len(skills),
+                "skills": skills,
+            }, ensure_ascii=False, indent=2)
+
+        elif name == "skill_get":
+            s_name = args.get("name")
+            if not s_name:
+                raise ValueError("'name' is required for skill_get")
+            skill = await skills_store.get_skill(s_name)
+            if not skill:
+                return json.dumps({"status": "not_found", "message": f"Skill '{s_name}' not found."}, indent=2)
+            return json.dumps({"status": "success", "skill": skill}, ensure_ascii=False, indent=2)
+
+        elif name == "skill_install":
+            s_name = args.get("name")
+            target = args.get("target_agent", "all")
+            if not s_name:
+                raise ValueError("'name' is required for skill_install")
+
+            if target == "all":
+                res = await skills_store.install_to_all_agents(s_name)
+            else:
+                res = await skills_store.install_skill(s_name, target)
+
+            return json.dumps({"status": "success", "result": res}, ensure_ascii=False, indent=2)
+
+        elif name == "mcp_server_publish":
+            srv_name = args.get("name")
+            transport = args.get("transport")
+            config = args.get("config")
+            source_agent = client_info or "unknown"
+
+            if not srv_name or not transport or not config:
+                raise ValueError("'name', 'transport', and 'config' are required for mcp_server_publish")
+
+            res = await mcp_registry.register_server(
+                name=srv_name,
+                transport=transport,
+                config=config,
+                source_agent=source_agent,
+            )
+            return json.dumps({
+                "status": "success",
+                "action": res.get("action"),
+                "server": res,
+                "message": f"Successfully registered MCP server '{srv_name}'.",
+            }, ensure_ascii=False, indent=2)
+
+        elif name == "mcp_server_list":
+            only_active = bool(args.get("only_active", True))
+            servers = await mcp_registry.list_servers(only_active=only_active)
+            return json.dumps({
+                "status": "success",
+                "count": len(servers),
+                "servers": servers,
+            }, ensure_ascii=False, indent=2)
+
+        elif name == "mcp_server_install":
+            srv_name = args.get("name")
+            target = args.get("target_agent", "all")
+            if not srv_name:
+                raise ValueError("'name' is required for mcp_server_install")
+
+            if target == "all":
+                res = await mcp_registry.install_to_all_detected(srv_name)
+            else:
+                res = await mcp_registry.install_server(srv_name, target)
+
+            return json.dumps({"status": "success", "result": res}, ensure_ascii=False, indent=2)
+
         else:
             raise ValueError(f"Unknown tool: {name}")
+
 
 
     def _success_response(self, msg_id: Any, result: Any) -> Dict[str, Any]:

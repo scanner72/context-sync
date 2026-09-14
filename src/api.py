@@ -19,8 +19,11 @@ from src.database import init_db
 from src.mcp_server import mcp_handler
 from src.context_store import context_store
 from src.facts import fact_store
+from src.skills import skills_store
+from src.mcp_registry import mcp_registry
 from src.fleet import fleet_tracker
 from src.scanner import scan_agents, inject_mcp_server
+
 
 logger = logging.getLogger(__name__)
 
@@ -628,4 +631,142 @@ async def resolve_fact_api(
     if not resolved:
         raise HTTPException(status_code=404, detail="Fact not found")
     return resolved
+
+
+# ============================================================================
+# Skills Management & Cross-Agent Replication API
+# ============================================================================
+
+@app.get("/api/v1/skills", tags=["Skills API"])
+async def list_skills_api(
+    tag: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 50,
+    _token: str = Depends(verify_token),
+):
+    """List available skills across the AI agent fleet."""
+    items = await skills_store.list_skills(tag=tag, search=search, limit=limit)
+    return {"count": len(items), "skills": items}
+
+
+@app.post("/api/v1/skills", tags=["Skills API"])
+async def publish_skill_api(
+    data: Dict[str, Any],
+    _token: str = Depends(verify_token),
+):
+    """Publish or update a skill in the centralized fleet repository."""
+    name = data.get("name")
+    content_md = data.get("content_md")
+    if not name or not content_md:
+        raise HTTPException(status_code=400, detail="'name' and 'content_md' are required")
+
+    res = await skills_store.publish_skill(
+        name=name,
+        content_md=content_md,
+        description=data.get("description"),
+        version=data.get("version", "1.0.0"),
+        files_bundle=data.get("files_bundle") or {},
+        source_agent=data.get("source_agent", "api"),
+        tags=data.get("tags") or [],
+    )
+    return res
+
+
+@app.get("/api/v1/skills/{name}", tags=["Skills API"])
+async def get_skill_api(
+    name: str,
+    _token: str = Depends(verify_token),
+):
+    """Retrieve full skill specification and assets."""
+    skill = await skills_store.get_skill(name)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+    return skill
+
+
+@app.post("/api/v1/skills/{name}/install", tags=["Skills API"])
+async def install_skill_api(
+    name: str,
+    data: Optional[Dict[str, Any]] = None,
+    _token: str = Depends(verify_token),
+):
+    """Deploy skill into local agent filesystem (or all agents)."""
+    target = (data or {}).get("target_agent", "all")
+    try:
+        if target == "all":
+            res = await skills_store.install_to_all_agents(name)
+        else:
+            res = await skills_store.install_skill(name, target)
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ============================================================================
+# MCP Fleet Hub Registry & Propagation API
+# ============================================================================
+
+@app.get("/api/v1/mcp-registry", tags=["MCP Registry API"])
+async def list_mcp_servers_api(
+    only_active: bool = True,
+    _token: str = Depends(verify_token),
+):
+    """List all registered external MCP servers."""
+    servers = await mcp_registry.list_servers(only_active=only_active)
+    return {"count": len(servers), "servers": servers}
+
+
+@app.post("/api/v1/mcp-registry", tags=["MCP Registry API"])
+async def register_mcp_server_api(
+    data: Dict[str, Any],
+    _token: str = Depends(verify_token),
+):
+    """Register or update an MCP server configuration in the fleet repository."""
+    name = data.get("name")
+    transport = data.get("transport")
+    config = data.get("config")
+    if not name or not transport or not config:
+        raise HTTPException(status_code=400, detail="'name', 'transport', and 'config' are required")
+
+    try:
+        res = await mcp_registry.register_server(
+            name=name,
+            transport=transport,
+            config=config,
+            source_agent=data.get("source_agent", "api"),
+        )
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/v1/mcp-registry/{name}", tags=["MCP Registry API"])
+async def get_mcp_server_api(
+    name: str,
+    _token: str = Depends(verify_token),
+):
+    """Retrieve an MCP server configuration."""
+    server = await mcp_registry.get_server(name)
+    if not server:
+        raise HTTPException(status_code=404, detail=f"MCP server '{name}' not found")
+    return server
+
+
+@app.post("/api/v1/mcp-registry/{name}/install", tags=["MCP Registry API"])
+async def install_mcp_server_api(
+    name: str,
+    data: Optional[Dict[str, Any]] = None,
+    _token: str = Depends(verify_token),
+):
+    """Inject an MCP server into local agent configuration files."""
+    target = (data or {}).get("target_agent", "all")
+    try:
+        if target == "all":
+            res = await mcp_registry.install_to_all_detected(name)
+        else:
+            res = await mcp_registry.install_server(name, target)
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 

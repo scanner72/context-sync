@@ -57,3 +57,35 @@ ON project_facts (project, entity, attribute);
 CREATE INDEX IF NOT EXISTS idx_project_facts_active 
 ON project_facts (project, is_active);
 
+-- Centralized Skills Registry (Cross-Agent Skills Replication)
+CREATE TABLE IF NOT EXISTS fleet_skills (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(128) NOT NULL UNIQUE,
+    version VARCHAR(32) NOT NULL DEFAULT '1.0.0',
+    description TEXT,
+    content_md TEXT NOT NULL,
+    files_bundle JSONB NOT NULL DEFAULT '{}'::jsonb,
+    source_agent VARCHAR(128) NOT NULL DEFAULT 'unknown',
+    tags TEXT[] NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_fleet_skills_name ON fleet_skills (name);
+CREATE INDEX IF NOT EXISTS idx_fleet_skills_tags ON fleet_skills USING gin (tags);
+
+-- Centralized MCP Server Registry (Cross-Agent MCP Replication)
+CREATE TABLE IF NOT EXISTS fleet_mcp_servers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(128) NOT NULL UNIQUE,
+    transport VARCHAR(32) NOT NULL DEFAULT 'stdio',
+    config JSONB NOT NULL DEFAULT '{}'::jsonb,
+    source_agent VARCHAR(128) NOT NULL DEFAULT 'unknown',
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_fleet_mcp_servers_name ON fleet_mcp_servers (name);
+
+

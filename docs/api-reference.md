@@ -186,7 +186,63 @@ The Fact-Level Conflict Resolution (FLCR) engine manages version-controlled atom
 
 ---
 
-## 4. MCP JSON-RPC Tools
+## 4. Cross-Agent Skills Replication API
+
+Central repository for publishing, searching, and unpacking agent skills (`SKILL.md` instructions, triggers, and bundled scripts) across Antigravity, Cursor, Claude Code, Codex, and Windsurf.
+
+### 4.1 List Skills
+- **Endpoint**: `GET /api/v1/skills`
+- **Query Params**: `tag` (str, opt), `search` (str, opt), `limit` (int, opt)
+
+### 4.2 Publish Skill
+- **Endpoint**: `POST /api/v1/skills`
+- **Request Body**:
+  ```json
+  {
+    "name": "docker-expert",
+    "content_md": "---\nname: docker-expert\ndescription: Docker wizardry\n---\n# Instructions...",
+    "description": "Docker wizardry",
+    "version": "1.0.0",
+    "files_bundle": {"scripts/check_ports.py": "print('ok')"},
+    "tags": ["docker", "devops"]
+  }
+  ```
+
+### 4.3 Install Skill into Agent Filesystem
+- **Endpoint**: `POST /api/v1/skills/{name}/install`
+- **Request Body**: `{"target_agent": "cursor"}` (or `"claude"`, `"antigravity"`, `"codex"`, `"all"`)
+
+---
+
+## 5. MCP Fleet Hub Registry API
+
+Registry for sharing external MCP server definitions and deploying them across installed coding agents.
+
+### 5.1 List Registered Servers
+- **Endpoint**: `GET /api/v1/mcp-registry`
+
+### 5.2 Register Server
+- **Endpoint**: `POST /api/v1/mcp-registry`
+- **Request Body**:
+  ```json
+  {
+    "name": "github",
+    "transport": "stdio",
+    "config": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "..."}
+    }
+  }
+  ```
+
+### 5.3 Install Server into Agents
+- **Endpoint**: `POST /api/v1/mcp-registry/{name}/install`
+- **Request Body**: `{"target_agent": "all"}` (or specific app_id: `"cursor"`, `"claude-desktop"`, etc.)
+
+---
+
+## 6. MCP JSON-RPC Tools
 
 When connected via `/sse` or stdio, the following tools are exposed via the standard MCP protocol:
 
@@ -205,4 +261,20 @@ When connected via `/sse` or stdio, the following tools are exposed via the stan
 | `fact_set` | `entity` (str), `attribute` (str), `value` (any), `project` (str, opt), `confidence` (float, opt), `policy` (`"lww"` \| `"authority"`, opt) | Atomically stores/updates a fact with versioning and conflict policy. |
 | `fact_get` | `entity` (str), `attribute` (str), `project` (str, opt) | Retrieves current active fact for given entity & attribute. |
 | `fact_list` | `project` (str, opt), `entity` (str, opt) | Returns full project Truth-Table of active facts. |
-| `fact_history` | `entity` (str), `attribute` (str), `project` (str, opt) | Returns complete audit trail of past versions and conflicts. |
+| `fact_history` | `entity` (str), `attribute` (str), `project` (str, opt) | Returns complete audit trail of past versions and conflicts. |
+
+### Skills Replication Tools
+| Tool Name | Parameters | Description |
+|---|---|---|
+| `skill_publish` | `name` (str), `content_md` (str), `description` (str, opt), `version` (str, opt), `files_bundle` (obj, opt), `tags` (list, opt) | Publish or update a skill in the centralized fleet repository. |
+| `skill_list` | `search` (str, opt), `tag` (str, opt) | Search and list available skills created across the agent fleet. |
+| `skill_get` | `name` (str) | Fetch full skill specification, instructions, and bundled assets. |
+| `skill_install` | `name` (str), `target_agent` (str, default: `'all'`) | Unpack and install skill into target agent directory. |
+
+### MCP Fleet Registry Tools
+| Tool Name | Parameters | Description |
+|---|---|---|
+| `mcp_server_publish` | `name` (str), `transport` (`"stdio"` \| `"sse"`), `config` (obj) | Register a validated external MCP server in the fleet hub. |
+| `mcp_server_list` | `only_active` (bool, default: `true`) | List available registered MCP servers. |
+| `mcp_server_install` | `name` (str), `target_agent` (str, default: `'all'`) | Deploy an MCP server into local agent JSON configuration files. |
+

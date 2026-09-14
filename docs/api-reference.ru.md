@@ -159,7 +159,63 @@
 
 ---
 
-## 4. Инструменты протокола MCP JSON-RPC
+## 4. Репликация навыков (Skills API)
+
+Централизованный реестр навыков (`SKILL.md` + скрипты + шаблоны) для обмена между Cursor, Antigravity, Claude Code, Codex и Windsurf.
+
+### 4.1 Список доступных навыков
+- **Эндпоинт**: `GET /api/v1/skills`
+- **Параметры**: `tag` (str, опц), `search` (str, опц), `limit` (int, опц)
+
+### 4.2 Публикация навыка
+- **Эндпоинт**: `POST /api/v1/skills`
+- **Тело запроса**:
+  ```json
+  {
+    "name": "docker-expert",
+    "content_md": "---\nname: docker-expert\ndescription: Docker wizardry\n---\n# Instructions...",
+    "description": "Docker wizardry",
+    "version": "1.0.0",
+    "files_bundle": {"scripts/test.py": "print('ok')"},
+    "tags": ["docker", "devops"]
+  }
+  ```
+
+### 4.3 Установка навыка в агент
+- **Эндпоинт**: `POST /api/v1/skills/{name}/install`
+- **Тело запроса**: `{"target_agent": "cursor"}` (или `"claude"`, `"antigravity"`, `"codex"`, `"all"`)
+
+---
+
+## 5. Центральный реестр MCP-серверов (MCP Fleet Hub)
+
+Единый реестр внешних MCP-серверов с возможностью мгновенного проброса в локальные конфиги агентов.
+
+### 5.1 Список зарегистрированных серверов
+- **Эндпоинт**: `GET /api/v1/mcp-registry`
+
+### 5.2 Регистрация сервера
+- **Эндпоинт**: `POST /api/v1/mcp-registry`
+- **Тело запроса (stdio)**:
+  ```json
+  {
+    "name": "github",
+    "transport": "stdio",
+    "config": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "..."}
+    }
+  }
+  ```
+
+### 5.3 Развертывание сервера в конфигурации агентов
+- **Эндпоинт**: `POST /api/v1/mcp-registry/{name}/install`
+- **Тело запроса**: `{"target_agent": "all"}` (или конкретный `app_id`: `"cursor"`, `"claude-desktop"`, `"antigravity"`)
+
+---
+
+## 6. Инструменты протокола MCP JSON-RPC
 
 При подключении через `/sse` или `stdio` ИИ-агентам доступны следующие стандартные инструменты MCP:
 
@@ -179,3 +235,19 @@
 | `fact_get` | `entity` (str), `attribute` (str), `project` (str, опц) | Возвращает текущее утвержденное значение параметра. |
 | `fact_list` | `project` (str, опц), `entity` (str, опц) | Возвращает всю Таблицу Истинных Фактов (Truth-Table) проекта. |
 | `fact_history` | `entity` (str), `attribute` (str), `project` (str, опц) | Возвращает полную историю изменений, версий и зафиксированных конфликтов. |
+
+### Репликация навыков флота (Skills)
+| Имя инструмента | Параметры | Описание |
+|---|---|---|
+| `skill_publish` | `name` (str), `content_md` (str), `description` (str, опц), `version` (str, опц), `files_bundle` (obj, опц), `tags` (list, опц) | Публикация или обновление навыка в общем репозитории флота. |
+| `skill_list` | `search` (str, опц), `tag` (str, опц) | Каталог и поиск навыков, созданных другими агентами. |
+| `skill_get` | `name` (str) | Получение полного содержимого навыка и файлов. |
+| `skill_install` | `name` (str), `target_agent` (str, по умолч: `'all'`) | Установка навыка в локальную файловую систему агентов. |
+
+### Реестр MCP-серверов (MCP Hub)
+| Имя инструмента | Параметры | Описание |
+|---|---|---|
+| `mcp_server_publish` | `name` (str), `transport` (`"stdio"` \| `"sse"`), `config` (obj) | Регистрация проверенного MCP-сервера в реестре флота. |
+| `mcp_server_list` | `only_active` (bool, по умолч: `true`) | Список доступных внешних серверов. |
+| `mcp_server_install` | `name` (str), `target_agent` (str, по умолч: `'all'`) | Авто-инъекция сервера в JSON-конфиги агентов на машине. |
+

@@ -281,20 +281,19 @@ Context Sync is designed to run seamlessly on remote VPS or home lab servers (e.
 
 ## 🧪 Testing & Verification
 
-Context Sync maintains a comprehensive test suite covering FastEmbed vectors, FLCR versioning, MCP JSON-RPC handlers, fleet tracking, scanner injection, and auto-sync collectors:
+Context Sync maintains a comprehensive test suite covering FastEmbed vectors, FLCR versioning, skills replication, MCP fleet hub injection, MCP JSON-RPC handlers, fleet tracking, scanner injection, and auto-sync collectors:
 
 ```bash
 python -m pytest tests/ -v
-============================== 28 passed in 2.00s ==============================
+============================== 32 passed in 2.70s ==============================
 ```
-
 
 ---
 
 ## 📚 Documentation
 
 Detailed guides and technical references are available in the [`docs/`](docs/) directory:
-- **[REST & MCP API Reference](docs/api-reference.md)** ([Русская версия](docs/api-reference.ru.md)): Complete schema for all endpoints, FLCR tools, and JSON-RPC methods.
+- **[REST & MCP API Reference](docs/api-reference.md)** ([Русская версия](docs/api-reference.ru.md)): Complete schema for all endpoints, FLCR tools, Skills API, MCP Registry, and JSON-RPC methods.
 - **[Architecture & System Design](docs/architecture.md)** ([Русская версия](docs/architecture.ru.md)): Deep dive into pgvector HNSW indexing, FLCR mechanics, and FastEmbed local inference.
 - **[Agent Setup Guide](docs/agents-setup.md)**: Step-by-step instructions for Cursor, Claude Desktop, Claude Code, OpenAI Codex, and Antigravity.
 - **[Auto-Sync Daemon Guide](docs/auto-sync.md)**: Details on background workspace discovery and safe rules injection.
@@ -303,24 +302,24 @@ Detailed guides and technical references are available in the [`docs/`](docs/) d
 
 ## 🗺️ Roadmap
 
-### 🟢 Completed (v0.1.0 – v0.2.0)
+### 🟢 Completed (v0.1.0 – v0.3.0)
 - [x] Full FastMCP SSE (Server-Sent Events) transport with Bearer token authentication.
 - [x] Vector semantic memory powered by PostgreSQL 16 + pgvector (HNSW) and FastEmbed CPU.
 - [x] Bilingual Web Dashboard (EN / RU) and real-time Live Fleet Tracker.
 - [x] Autonomous background sync daemon for `AGENTS.md`, `CLAUDE.md`, and `.cursorrules`.
 - [x] **Fact-Level Conflict Resolution (FLCR)**: atomic fact versioning (`v1 -> v2`), LWW & Authority Hierarchy policies, `fact_*` MCP tools.
-
-### 🟡 In Active Development (v0.3.0) — Cross-Agent Skills & MCP Replication
-- [ ] **Cross-Agent Skills Replication (Skills Sync)**:
+- [x] **Cross-Agent Skills Replication (Skills Sync)**:
   - Unified Canonical Skill schema (`CanonicalSkill`: `SKILL.md` + scripts + templates).
   - Bidirectional adapters between **Antigravity**, **Cursor IDE**, **Claude Code**, **OpenAI Codex**, and **Windsurf**.
-  - Agent MCP tools: `skill_publish`, `skill_search`, `skill_install(target_agents)`.
-- [ ] **Centralized MCP Fleet Registry (MCP Hub)**:
+  - Agent MCP tools: `skill_publish`, `skill_list`, `skill_get`, `skill_install(target_agent)`.
+- [x] **Centralized MCP Fleet Registry (MCP Hub)**:
   - Central repository of validated MCP server configurations in PostgreSQL.
-  - 1-Click propagation of any MCP server across all installed local/remote agents.
-  - Interactive Agent-to-Server compatibility matrix in the Web Dashboard.
-- [ ] **Autonomous Propagator via Background Daemon**:
-  - Automatic detection of new skills created in one agent and safe propagation across the developer's entire agent fleet.
+  - 1-Click propagation of any MCP server across all installed local/remote agents (`mcp_server_install`).
+
+### 🟡 Planned (v0.4.0)
+- [ ] Visual Skill Designer and prompt editor in the Web Dashboard.
+- [ ] Semantic duplicate detection for published skills.
+
 
 ---
 

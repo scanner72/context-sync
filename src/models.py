@@ -131,3 +131,88 @@ class ProjectFact(Base):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
+
+class FleetSkill(Base):
+    """Reusable skill/instruction bundle with scripts and triggers for AI agents."""
+    __tablename__ = "fleet_skills"
+
+    id = Column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    name = Column(String(128), nullable=False, unique=True, index=True)
+    version = Column(String(32), nullable=False, default="1.0.0")
+    description = Column(Text, nullable=True)
+    content_md = Column(Text, nullable=False)
+    files_bundle = Column(JSONB, nullable=False, default=dict)
+    source_agent = Column(String(128), nullable=False, default="unknown")
+    tags = Column(ARRAY(String), nullable=False, default=list)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": str(self.id),
+            "name": self.name,
+            "version": self.version,
+            "description": self.description,
+            "content_md": self.content_md,
+            "files_bundle": dict(self.files_bundle or {}),
+            "source_agent": self.source_agent,
+            "tags": list(self.tags or []),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class FleetMCPServer(Base):
+    """Central registry of validated external MCP servers propagated across agents."""
+    __tablename__ = "fleet_mcp_servers"
+
+    id = Column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    name = Column(String(128), nullable=False, unique=True, index=True)
+    transport = Column(String(32), nullable=False, default="stdio")  # 'stdio' or 'sse'
+    config = Column(JSONB, nullable=False, default=dict)
+    source_agent = Column(String(128), nullable=False, default="unknown")
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": str(self.id),
+            "name": self.name,
+            "transport": self.transport,
+            "config": dict(self.config or {}),
+            "source_agent": self.source_agent,
+            "is_active": bool(self.is_active),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
