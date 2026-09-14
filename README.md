@@ -301,7 +301,31 @@ Detailed guides and technical references are available in the [`docs/`](docs/) d
 
 ---
 
+## 🗺️ Roadmap
+
+### 🟢 Completed (v0.1.0 – v0.2.0)
+- [x] Full FastMCP SSE (Server-Sent Events) transport with Bearer token authentication.
+- [x] Vector semantic memory powered by PostgreSQL 16 + pgvector (HNSW) and FastEmbed CPU.
+- [x] Bilingual Web Dashboard (EN / RU) and real-time Live Fleet Tracker.
+- [x] Autonomous background sync daemon for `AGENTS.md`, `CLAUDE.md`, and `.cursorrules`.
+- [x] **Fact-Level Conflict Resolution (FLCR)**: atomic fact versioning (`v1 -> v2`), LWW & Authority Hierarchy policies, `fact_*` MCP tools.
+
+### 🟡 In Active Development (v0.3.0) — Cross-Agent Skills & MCP Replication
+- [ ] **Cross-Agent Skills Replication (Skills Sync)**:
+  - Unified Canonical Skill schema (`CanonicalSkill`: `SKILL.md` + scripts + templates).
+  - Bidirectional adapters between **Antigravity**, **Cursor IDE**, **Claude Code**, **OpenAI Codex**, and **Windsurf**.
+  - Agent MCP tools: `skill_publish`, `skill_search`, `skill_install(target_agents)`.
+- [ ] **Centralized MCP Fleet Registry (MCP Hub)**:
+  - Central repository of validated MCP server configurations in PostgreSQL.
+  - 1-Click propagation of any MCP server across all installed local/remote agents.
+  - Interactive Agent-to-Server compatibility matrix in the Web Dashboard.
+- [ ] **Autonomous Propagator via Background Daemon**:
+  - Automatic detection of new skills created in one agent and safe propagation across the developer's entire agent fleet.
+
+---
+
 ## 🤝 Contributing
+
 
 
 Contributions are warmly welcome! Please see **[CONTRIBUTING.md](CONTRIBUTING.md)** for detailed development guidelines, code standards, and PR workflows.
