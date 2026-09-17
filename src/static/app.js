@@ -954,7 +954,8 @@ function copyToClipboard(text) {
 
 async function loadFleet() {
     const container = document.getElementById('fleetList');
-    const badge = document.getElementById('fleetCountBadge');
+    const navBadge = document.getElementById('navFleetBadge') || document.getElementById('fleetCountBadge');
+    const liveBadge = document.getElementById('liveSessionsBadge');
     const nodesContainer = document.getElementById('fleetNodesList');
     const nodesBadge = document.getElementById('nodesCountBadge');
 
@@ -965,7 +966,13 @@ async function loadFleet() {
         const agents = data.agents || [];
         const nodes = data.nodes || [];
 
-        if (badge) badge.innerText = agents.length;
+        const totalConfiguredAgents = nodes.reduce((sum, n) => sum + (n.configured_count || 0), 0);
+
+        if (navBadge) {
+            navBadge.innerText = totalConfiguredAgents > 0 ? totalConfiguredAgents : (nodes.length || agents.length);
+            navBadge.title = `Подключено компьютеров: ${nodes.length}, агентов: ${totalConfiguredAgents}`;
+        }
+        if (liveBadge) liveBadge.innerText = agents.length;
         if (nodesBadge) nodesBadge.innerText = nodes.length;
 
         // 1. Render Registered Nodes (Workstations & Laptops)
