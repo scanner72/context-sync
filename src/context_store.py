@@ -5,7 +5,7 @@ import math
 import logging
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
-from sqlalchemy import select, delete, text
+from sqlalchemy import select, delete, text, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import ContextDocument
@@ -206,6 +206,26 @@ class ContextStore:
 
             result = await session.execute(stmt)
             return (result.rowcount or 0) > 0
+
+    async def get_projects_summary(self) -> List[Dict[str, Any]]:
+        """Return list of distinct projects with context counts and last update."""
+        async with get_db_session() as session:
+            stmt = select(
+                ContextDocument.project,
+                func.count(ContextDocument.id).label("count"),
+                func.max(ContextDocument.updated_at).label("last_updated")
+            ).group_by(ContextDocument.project).order_by(func.count(ContextDocument.id).desc())
+            result = await session.execute(stmt)
+            projects = []
+            for row in result.all():
+                proj_name = row[0] or "global"
+                last_dt = row[2]
+                projects.append({
+                    "name": proj_name,
+                    "count": row[1],
+                    "last_updated": last_dt.isoformat() if last_dt else None,
+                })
+            return projects
 
 
 context_store = ContextStore()

@@ -592,17 +592,27 @@ async def inject_all_agents_api(
 async def sync_status_api(
     _token: str = Depends(verify_token),
 ):
-    """Get status of auto-sync daemon and active projects."""
+    """Get status of auto-sync daemon, database stored contexts, and active projects."""
     from src.syncer.daemon import AutoSyncDaemon
     from src.syncer.collectors import get_all_active_projects
 
     daemon = AutoSyncDaemon()
-    projects = get_all_active_projects()
+    projects = []
+    try:
+        projects = get_all_active_projects()
+    except Exception:
+        pass
+
+    db_projects = await context_store.get_projects_summary()
+    fleet_projects = fleet_tracker.get_all_registered_projects()
+    total_proj_count = max(len(projects), len(db_projects), len(fleet_projects))
+    total_contexts = sum(p.get("count", 0) for p in db_projects)
+
     return {
         "status": "ready",
         "last_cycle": daemon.state.get("last_cycle_info", {}),
-        "total_projects": len(projects),
-        "synced_sessions_total": len(daemon.state.get("synced_session_ids", {})),
+        "total_projects": total_proj_count,
+        "synced_sessions_total": total_contexts or len(daemon.state.get("synced_session_ids", {})),
     }
 
 
@@ -610,11 +620,79 @@ async def sync_status_api(
 async def sync_projects_api(
     _token: str = Depends(verify_token),
 ):
-    """List all detected active projects across Codex, Cursor, Claude Desktop, and local filesystem."""
+    """List all detected active projects across fleet workstations, stored database contexts, and local filesystem."""
     from src.syncer.collectors import get_all_active_projects
 
-    projects = get_all_active_projects()
-    return {"projects": projects, "count": len(projects)}
+    projects_map: Dict[str, Dict[str, Any]] = {}
+
+    # 1. Projects registered by fleet workstations (ai-studio, laptops)
+    for fp in fleet_tracker.get_all_registered_projects():
+        name = fp.get("name") or "unknown"
+        projects_map[name.lower()] = {
+            "name": name,
+            "path": fp.get("path") or "",
+            "sources": fp.get("sources") or ["fleet"],
+            "host": fp.get("host"),
+        }
+
+    # 2. Local filesystem projects (if running locally)
+    try:
+        local_projects = get_all_active_projects()
+        for lp in local_projects:
+            name = lp.get("name") or "unknown"
+            key = name.lower()
+            if key not in projects_map:
+                projects_map[key] = lp
+            else:
+                for s in lp.get("sources", []):
+                    if s not in projects_map[key]["sources"]:
+                        projects_map[key]["sources"].append(s)
+    except Exception:
+        pass
+
+    # 3. Database stored projects (contexts already synchronized)
+    try:
+        db_projects = await context_store.get_projects_summary()
+        for dp in db_projects:
+            name = dp.get("name") or "global"
+            key = name.lower()
+            if key in projects_map:
+                projects_map[key]["contexts_count"] = dp["count"]
+                projects_map[key]["last_updated"] = dp["last_updated"]
+            else:
+                projects_map[key] = {
+                    "name": name,
+                    "path": "(синхронизировано в базе знаний)",
+                    "sources": ["synced-db"],
+                    "contexts_count": dp["count"],
+                    "last_updated": dp["last_updated"],
+                }
+    except Exception as e:
+        logger.warning(f"Error reading db projects: {e}")
+
+    result = list(projects_map.values())
+    return {"projects": result, "count": len(result)}
+
+
+@app.post("/api/v1/sync/projects/register", tags=["Auto-Sync"])
+async def register_workstation_projects_api(
+    request: Request,
+    _token: str = Depends(verify_token),
+):
+    """Register projects discovered on a client workstation."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    hostname = body.get("hostname") or "Unknown Workstation"
+    projects = body.get("projects") or []
+    fleet_tracker.register_node_projects(hostname, projects)
+    return {
+        "status": "success",
+        "registered_projects": len(projects),
+        "hostname": hostname,
+    }
 
 
 @app.post("/api/v1/sync/trigger", tags=["Auto-Sync"])

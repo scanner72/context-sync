@@ -52,6 +52,7 @@ class FleetNode:
     os_name: str
     username: str = ""
     agents: List[Dict[str, Any]] = field(default_factory=list)
+    projects: List[Dict[str, Any]] = field(default_factory=list)
     registered_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     status: str = "online"
@@ -64,6 +65,8 @@ class FleetNode:
             "os_name": self.os_name,
             "username": self.username,
             "agents": self.agents,
+            "projects": self.projects,
+            "projects_count": len(self.projects),
             "registered_at": self.registered_at.isoformat(),
             "last_seen": self.last_seen.isoformat(),
             "status": self.status,
@@ -170,6 +173,35 @@ class FleetTracker:
             if (now - s.last_activity).total_seconds() <= max_idle_seconds
         ]
         return [s.to_dict() for s in sorted(active, key=lambda s: s.last_activity, reverse=True)]
+
+    def register_node_projects(self, hostname: str, projects: List[Dict[str, Any]]) -> bool:
+        matched = self._nodes.get(hostname)
+        if not matched:
+            # Match by case-insensitive or partial
+            for k, n in self._nodes.items():
+                if k.lower() == hostname.lower():
+                    matched = n
+                    break
+        if matched:
+            matched.projects = projects
+            matched.last_seen = datetime.now(timezone.utc)
+            matched.status = "online"
+            return True
+        return False
+
+    def get_all_registered_projects(self) -> List[Dict[str, Any]]:
+        all_projects: List[Dict[str, Any]] = []
+        seen_paths = set()
+        for node in self._nodes.values():
+            for p in getattr(node, "projects", []) or []:
+                key = (p.get("name") or "").lower()
+                if key not in seen_paths:
+                    seen_paths.add(key)
+                    # Add host info
+                    p_copy = dict(p)
+                    p_copy["host"] = node.hostname
+                    all_projects.append(p_copy)
+        return all_projects
 
     def list_nodes(self) -> List[Dict[str, Any]]:
         nodes = [

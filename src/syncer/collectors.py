@@ -362,13 +362,52 @@ class ClaudeCollector:
 
 
 class AntigravityCollector:
-    """Reads conversation transcripts from Antigravity."""
+    """Reads conversation transcripts and projects from Antigravity."""
 
     def __init__(self):
         self.brain_dir = Path.home() / ".gemini" / "antigravity" / "brain"
 
     def is_available(self) -> bool:
         return self.brain_dir.exists()
+
+    def get_known_projects(self) -> Dict[str, str]:
+        """Discover unique project directories from recent transcripts."""
+        projects = {}
+        if not self.brain_dir.exists():
+            return projects
+
+        for conv_dir in self.brain_dir.iterdir():
+            if not conv_dir.is_dir():
+                continue
+            transcript_file = conv_dir / ".system_generated" / "logs" / "transcript.jsonl"
+            if not transcript_file.exists():
+                continue
+            try:
+                with open(transcript_file, "r", encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        if not line.strip():
+                            continue
+                        try:
+                            st = json.loads(line)
+                            for tc in st.get("tool_calls") or []:
+                                args = tc.get("args") or {}
+                                for k in ("Cwd", "DirectoryPath", "TargetFile", "AbsolutePath", "SearchPath"):
+                                    if k in args:
+                                        val = str(args[k]).strip("\"'")
+                                        if val and ".gemini" not in val.lower() and ("\\" in val or "/" in val or ":" in val):
+                                            p_val = Path(val)
+                                            norm_path = str(p_val.parent) if p_val.suffix and p_val.parent else str(p_val)
+                                            if os.path.exists(norm_path):
+                                                name = _clean_project_name(norm_path)
+                                                projects[name] = norm_path
+                                                break
+                                if projects.get(conv_dir.name):
+                                    break
+                        except Exception:
+                            continue
+            except Exception:
+                continue
+        return projects
 
     def collect_sessions(self, since_ms: int = 0) -> List[ProjectSession]:
         sessions: List[ProjectSession] = []
@@ -387,35 +426,68 @@ class AntigravityCollector:
                 if mtime_ms < since_ms:
                     continue
 
-                user_prompts = []
+                detected_path = None
+                messages: List[Dict[str, Any]] = []
+
                 with open(transcript_file, "r", encoding="utf-8", errors="ignore") as f:
                     for line in f:
                         if not line.strip():
                             continue
                         try:
                             step = json.loads(line)
-                            if step.get("type") == "USER_INPUT":
+                            # Detect project path from tool calls
+                            if not detected_path:
+                                for tc in step.get("tool_calls") or []:
+                                    args = tc.get("args") or {}
+                                    for k in ("Cwd", "DirectoryPath", "TargetFile", "AbsolutePath", "SearchPath"):
+                                        if k in args:
+                                            val = str(args[k]).strip("\"'")
+                                            if val and ".gemini" not in val.lower() and ("\\" in val or "/" in val or ":" in val):
+                                                p_val = Path(val)
+                                                detected_path = str(p_val.parent) if p_val.suffix and p_val.parent else str(p_val)
+                                                break
+                                    if detected_path:
+                                        break
+
+                            st_type = step.get("type")
+                            if st_type == "USER_INPUT":
                                 txt = step.get("content", "").replace("<USER_REQUEST>", "").replace("</USER_REQUEST>", "").strip()
                                 if "<ADDITIONAL_METADATA>" in txt:
                                     txt = txt.split("<ADDITIONAL_METADATA>")[0].strip()
                                 txt = " ".join(txt.split())
                                 if txt:
-                                    user_prompts.append(txt)
+                                    messages.append({"role": "user", "text": txt, "timestamp": mtime_ms})
+                            elif st_type == "PLANNER_RESPONSE":
+                                cnt = step.get("content", "").strip()
+                                if cnt:
+                                    messages.append({"role": "assistant", "text": cnt, "timestamp": mtime_ms})
                         except Exception:
                             continue
 
-                if user_prompts:
-                    title = user_prompts[0][:100]
+                user_turns = [m for m in messages if m["role"] == "user"]
+                asst_turns = [m for m in messages if m["role"] == "assistant"]
+
+                if user_turns:
+                    title = user_turns[0]["text"][:100]
+                    proj_path = detected_path or os.getcwd()
+                    proj_name = _clean_project_name(proj_path)
+
+                    summary_lines = [f"### [Antigravity] Проект: {proj_name} — {title}"]
+                    summary_lines.append(f"**Запрос / Цель**: {user_turns[0]['text'][:350]}")
+                    if asst_turns:
+                        summary_lines.append(f"**Итог / Решение**: {asst_turns[-1]['text'][:650]}")
+                    summary = "\n".join(summary_lines)
+
                     sessions.append(
                         ProjectSession(
                             agent="antigravity",
-                            project_name="context_sync",
-                            project_path=os.getcwd(),
+                            project_name=proj_name,
+                            project_path=proj_path,
                             session_id=conv_dir.name,
                             title=title,
                             updated_at_ms=mtime_ms,
-                            messages=[{"role": "user", "text": p} for p in user_prompts],
-                            summary=f"### [Antigravity] Сессия {conv_dir.name[:8]}\nЗапрос: {title}",
+                            messages=messages,
+                            summary=summary,
                         )
                     )
             except Exception as e:
@@ -425,7 +497,7 @@ class AntigravityCollector:
 
 
 def get_all_active_projects() -> List[Dict[str, Any]]:
-    """Discover all known projects across Codex, Cursor, Claude Desktop, and local filesystem."""
+    """Discover all known projects across Codex, Cursor, Claude Desktop, Antigravity, and local filesystem."""
     projects_map: Dict[str, Dict[str, Any]] = {}
 
     # 1. From Codex
@@ -447,7 +519,8 @@ def get_all_active_projects() -> List[Dict[str, Any]]:
             norm = os.path.normpath(path)
             key = norm.lower()
             if key in projects_map:
-                projects_map[key]["sources"].append("cursor")
+                if "cursor" not in projects_map[key]["sources"]:
+                    projects_map[key]["sources"].append("cursor")
             else:
                 projects_map[key] = {
                     "name": _clean_project_name(norm),
@@ -455,7 +528,44 @@ def get_all_active_projects() -> List[Dict[str, Any]]:
                     "sources": ["cursor"],
                 }
 
-    # 3. Always include current workspace
+    # 3. From Claude Code
+    claude = ClaudeCollector()
+    if claude.claude_json.exists():
+        try:
+            data = json.loads(claude.claude_json.read_text(encoding="utf-8"))
+            for p_path in (data.get("projects") or {}).keys():
+                if p_path and os.path.exists(p_path):
+                    norm = os.path.normpath(p_path)
+                    key = norm.lower()
+                    if key in projects_map:
+                        if "claude" not in projects_map[key]["sources"]:
+                            projects_map[key]["sources"].append("claude")
+                    else:
+                        projects_map[key] = {
+                            "name": _clean_project_name(norm),
+                            "path": norm,
+                            "sources": ["claude"],
+                        }
+        except Exception:
+            pass
+
+    # 4. From Antigravity
+    antigravity = AntigravityCollector()
+    for p_name, path in antigravity.get_known_projects().items():
+        if path and os.path.exists(path):
+            norm = os.path.normpath(path)
+            key = norm.lower()
+            if key in projects_map:
+                if "antigravity" not in projects_map[key]["sources"]:
+                    projects_map[key]["sources"].append("antigravity")
+            else:
+                projects_map[key] = {
+                    "name": p_name,
+                    "path": norm,
+                    "sources": ["antigravity"],
+                }
+
+    # 5. Always include current workspace
     cwd = os.path.normpath(os.getcwd())
     if cwd.lower() in projects_map:
         if "workspace" not in projects_map[cwd.lower()]["sources"]:

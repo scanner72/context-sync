@@ -30,16 +30,27 @@ class AutoSyncDaemon:
 
     def __init__(
         self,
-        api_url: str = "http://localhost:8000",
+        api_url: str = "http://10.10.10.11:8200",
         auth_token: str = "ctx_secret_token_7f9a8b1c4e2d3f5a",
         state_file: Optional[Path] = None,
         sync_interval_sec: int = 90,
+        reset: bool = False,
     ):
+        import re
         self.api_url = api_url.rstrip("/")
         self.auth_token = auth_token
         self.sync_interval_sec = sync_interval_sec
-        self.state_file = state_file or (Path.home() / ".codex" / ".context_sync_daemon_state.json")
-        self.state = self._load_state()
+        safe_url = re.sub(r'[^a-zA-Z0-9]', '_', self.api_url)
+        self.state_file = state_file or (Path.home() / ".codex" / f".context_sync_state_{safe_url}.json")
+        if reset:
+            self.state = {
+                "last_synced_ms": 0,
+                "synced_session_ids": {},
+                "last_cycle_info": {},
+            }
+            self._save_state()
+        else:
+            self.state = self._load_state()
         self.is_running = False
 
     def _load_state(self) -> Dict[str, Any]:
@@ -60,6 +71,30 @@ class AutoSyncDaemon:
             self.state_file.write_text(json.dumps(self.state, ensure_ascii=False, indent=2), encoding="utf-8")
         except Exception as e:
             logger.warning(f"Could not save daemon state: {e}")
+
+    def _register_projects_to_server(self, projects: List[Dict[str, Any]]) -> bool:
+        """Register discovered workstation projects on the central server."""
+        import socket
+        url = f"{self.api_url}/api/v1/sync/projects/register"
+        try:
+            payload = json.dumps({
+                "hostname": socket.gethostname(),
+                "projects": projects,
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.auth_token}",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                return resp.status in (200, 201)
+        except Exception as e:
+            logger.debug(f"Failed to register projects on server {url}: {e}")
+            return False
 
     def _post_context_to_server(self, title: str, content: str, project: str, tags: List[str]) -> bool:
         """Post a synced session to the remote context store REST endpoint."""
@@ -167,8 +202,9 @@ class AutoSyncDaemon:
                 "summary_snippet": s.summary.split("\n")[1][:120] if "\n" in s.summary else "",
             })
 
-        # 3. Discover all active projects and update CLAUDE.md / AGENTS.md / .cursorrules
+        # 3. Discover all active projects, register to central server, and update CLAUDE.md / AGENTS.md / .cursorrules
         active_projects = get_all_active_projects()
+        self._register_projects_to_server(active_projects)
         updated_projects_count = 0
 
         for p_info in active_projects:
@@ -239,10 +275,12 @@ def main():
             pass
 
     parser = argparse.ArgumentParser(description="Multi-Agent Chat & Project Auto-Sync Daemon")
-    parser.add_argument("--url", default="http://localhost:8000", help="Context Store API base URL")
+    default_url = os.environ.get("CONTEXT_SYNC_URL", "http://10.10.10.11:8200")
+    parser.add_argument("--url", "--server", dest="url", default=default_url, help="Context Store API base URL")
     parser.add_argument("--token", default="ctx_secret_token_7f9a8b1c4e2d3f5a", help="Auth token")
     parser.add_argument("--interval", type=int, default=90, help="Sync interval in seconds")
     parser.add_argument("--once", action="store_true", help="Run once and exit without looping")
+    parser.add_argument("--reset", action="store_true", help="Reset local sync state and sync all sessions from scratch")
 
     args = parser.parse_args()
 
@@ -250,6 +288,7 @@ def main():
         api_url=args.url,
         auth_token=args.token,
         sync_interval_sec=args.interval,
+        reset=args.reset,
     )
 
     if args.once:
