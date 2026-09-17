@@ -424,10 +424,27 @@ def report_fleet_node(server_url: str, token: str, targets: List[AgentTarget]):
             for t in targets if t.detected
         ]
 
+        # Determine actual local LAN IP address connecting to server
+        lan_ip = "127.0.0.1"
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.settimeout(0.5)
+            target_host = parsed.hostname or "10.10.10.11"
+            target_port = parsed.port or 8200
+            s.connect((target_host, target_port))
+            lan_ip = s.getsockname()[0]
+            s.close()
+        except Exception:
+            try:
+                lan_ip = socket.gethostbyname(hostname)
+            except Exception:
+                pass
+
         payload = {
             "hostname": hostname,
             "username": username,
             "os_name": os_info,
+            "client_ip": lan_ip,
             "agents": agents_data,
         }
 

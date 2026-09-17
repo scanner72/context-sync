@@ -114,9 +114,10 @@ class FleetTracker:
         username: str = "",
         agents: Optional[List[Dict[str, Any]]] = None,
     ) -> FleetNode:
-        # Match by IP if an unnamed placeholder exists, or by node_id
-        matched = self._nodes.get(f"{hostname}@{ip}")
+        node_id = hostname
+        matched = self._nodes.get(node_id)
         if not matched:
+            # Check if there was an unnamed placeholder for this IP
             for k, n in list(self._nodes.items()):
                 if n.ip == ip and (not n.agents or n.hostname.startswith("Workstation (")):
                     self._nodes.pop(k, None)
@@ -124,7 +125,7 @@ class FleetTracker:
                     break
 
         if matched:
-            matched.node_id = f"{hostname}@{ip}"
+            matched.node_id = node_id
             matched.hostname = hostname
             matched.ip = ip
             matched.os_name = os_name
@@ -134,18 +135,18 @@ class FleetTracker:
                 matched.agents = agents
             matched.last_seen = datetime.now(timezone.utc)
             matched.status = "online"
-            self._nodes[matched.node_id] = matched
+            self._nodes[node_id] = matched
             return matched
         else:
             node = FleetNode(
-                node_id=f"{hostname}@{ip}",
+                node_id=node_id,
                 hostname=hostname,
                 ip=ip,
                 os_name=os_name,
                 username=username,
                 agents=agents or [],
             )
-            self._nodes[node.node_id] = node
+            self._nodes[node_id] = node
             return node
 
     def record_activity(self, session_id: str, tool_name: Optional[str] = None):
@@ -171,11 +172,11 @@ class FleetTracker:
         return [s.to_dict() for s in sorted(active, key=lambda s: s.last_activity, reverse=True)]
 
     def list_nodes(self) -> List[Dict[str, Any]]:
-        nodes = sorted(
-            self._nodes.values(),
-            key=lambda n: n.last_seen,
-            reverse=True,
-        )
+        nodes = [
+            n for n in self._nodes.values()
+            if n.agents or not n.hostname.startswith("Workstation (")
+        ]
+        nodes.sort(key=lambda n: n.last_seen, reverse=True)
         return [n.to_dict() for n in nodes]
 
 

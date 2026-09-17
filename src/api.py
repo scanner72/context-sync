@@ -472,7 +472,13 @@ async def register_fleet_node_api(
     _token: str = Depends(verify_token),
 ):
     """Register or heartbeat a remote workstation/laptop in the Fleet registry."""
-    client_ip = request.client.host if request.client else "unknown"
+    reported_ip = data.get("client_ip")
+    client_ip = (
+        reported_ip
+        or request.headers.get("X-Real-IP")
+        or (request.headers.get("X-Forwarded-For", "").split(",")[0].strip() if request.headers.get("X-Forwarded-For") else None)
+        or (request.client.host if request.client else "unknown")
+    )
     hostname = data.get("hostname") or client_ip
     os_name = data.get("os_name") or "unknown"
     username = data.get("username") or ""
