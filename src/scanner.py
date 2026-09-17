@@ -244,10 +244,11 @@ def inject_mcp_server(
                 shutil.copyfile(target.config_path, backup_path)
 
             if use_command_proxy:
+                allow_http_flag = ', "--allow-http"' if sse_url.startswith("http://") else ""
                 toml_block = f"""
 [mcp_servers.{server_name}]
 command = "npx"
-args = ["-y", "mcp-remote", "{sse_url}?token={token}"]
+args = ["-y", "mcp-remote", "{sse_url}?token={token}"{allow_http_flag}]
 """
             else:
                 toml_block = f"""
@@ -292,25 +293,23 @@ Authorization = "Bearer {token}"
             }
         elif target.app_id == "claude-desktop" or use_command_proxy:
             # Claude Desktop strictly requires stdio command transport
+            remote_args = ["-y", "mcp-remote", f"{sse_url}?token={token}"]
+            if sse_url.startswith("http://"):
+                remote_args.append("--allow-http")
+
             if sys.platform.startswith("win"):
                 data["mcpServers"][server_name] = {
                     "command": "cmd.exe",
                     "args": [
                         "/c",
                         "npx",
-                        "-y",
-                        "mcp-remote",
-                        f"{sse_url}?token={token}",
+                        *remote_args,
                     ],
                 }
             else:
                 data["mcpServers"][server_name] = {
                     "command": "npx",
-                    "args": [
-                        "-y",
-                        "mcp-remote",
-                        f"{sse_url}?token={token}",
-                    ],
+                    "args": remote_args,
                 }
         else:
             # Direct SSE with headers (standard)

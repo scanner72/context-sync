@@ -68,7 +68,8 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
         "npx",
         "-y",
         "mcp-remote",
-        "http://localhost:8000/sse?token=ctx_secret_token_7f9a8b1c4e2d3f5a"
+        "http://localhost:8000/sse?token=ctx_secret_token_7f9a8b1c4e2d3f5a",
+        "--allow-http"
       ]
     }
   }
@@ -85,7 +86,8 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
       "args": [
         "-y",
         "mcp-remote",
-        "http://localhost:8000/sse?token=ctx_secret_token_7f9a8b1c4e2d3f5a"
+        "http://localhost:8000/sse?token=ctx_secret_token_7f9a8b1c4e2d3f5a",
+        "--allow-http"
       ]
     }
   }

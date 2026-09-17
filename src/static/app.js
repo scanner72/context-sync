@@ -888,15 +888,20 @@ function renderMcpConfigs() {
         }
     };
 
+    const remoteArgs = [
+        "-y",
+        "mcp-remote",
+        `${sseUrl}?token=${token}`
+    ];
+    if (sseUrl.startsWith("http://")) {
+        remoteArgs.push("--allow-http");
+    }
+
     const remoteConfig = {
         mcpServers: {
             "remote-context": {
                 command: "npx",
-                args: [
-                    "-y",
-                    "mcp-remote",
-                    `${sseUrl}?token=${token}`
-                ]
+                args: remoteArgs
             }
         }
     };

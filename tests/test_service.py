@@ -306,6 +306,7 @@ async def test_scanner_injection(tmp_path):
     assert "remote-context" in updated["mcpServers"]
     assert "command" in updated["mcpServers"]["remote-context"]
     assert "mcp-remote" in updated["mcpServers"]["remote-context"]["args"]
+    assert "--allow-http" in updated["mcpServers"]["remote-context"]["args"]
     assert "old-server" in updated["mcpServers"]
 
     # Also test standard SSE target (e.g. Cursor)
