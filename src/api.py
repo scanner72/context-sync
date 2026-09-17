@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException, Security, Depends, status, Query
-from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -77,6 +77,130 @@ async def serve_ui():
     if index_file.exists():
         return FileResponse(index_file)
     return JSONResponse({"message": "Remote Context Store API is running. UI assets not found."})
+
+
+def _get_effective_base_url(request: Request) -> str:
+    """Derive external base URL taking reverse proxy headers into account."""
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    forwarded_host = request.headers.get("x-forwarded-host")
+    if forwarded_host:
+        proto = forwarded_proto or request.url.scheme
+        return f"{proto}://{forwarded_host}".rstrip("/")
+    return str(request.base_url).rstrip("/")
+
+
+@app.get("/scanner.py", tags=["Agent Bootstrap"])
+async def serve_scanner_script():
+    """Download standalone agent scanner & MCP injector script."""
+    scanner_path = Path(__file__).resolve().parent / "scanner.py"
+    if not scanner_path.exists():
+        raise HTTPException(status_code=404, detail="scanner.py not found")
+    return FileResponse(
+        path=str(scanner_path),
+        media_type="text/x-python",
+        filename="scanner.py",
+    )
+
+
+@app.get("/install.ps1", tags=["Agent Bootstrap"], response_class=PlainTextResponse)
+async def serve_install_ps1(request: Request, token: Optional[str] = Query(None)):
+    """PowerShell one-liner installer for Windows machines."""
+    base_url = _get_effective_base_url(request)
+    auth_token = token or settings.auth_token
+    script = f"""# ContextSync Windows Auto-Installer & Scanner
+$ErrorActionPreference = "Stop"
+try {{ [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 }} catch {{}}
+try {{ $OutputEncoding = [System.Text.Encoding]::UTF8 }} catch {{}}
+$BaseUrl = "{base_url}"
+$Token = "{auth_token}"
+
+Write-Host "========================================================" -ForegroundColor Cyan
+Write-Host "   ContextSync AI Agent Scanner & MCP Auto-Connector   " -ForegroundColor Cyan
+Write-Host "========================================================" -ForegroundColor Cyan
+
+# 1. Detect Python
+$pythonExe = $null
+foreach ($cmd in @("python", "py", "python3")) {{
+    try {{
+        $ver = & $cmd --version 2>&1
+        if ($LASTEXITCODE -eq 0 -or $ver -match "Python") {{
+            $pythonExe = $cmd
+            break
+        }}
+    }} catch {{}}
+}}
+
+if (-not $pythonExe) {{
+    Write-Host "[ERROR] Python 3 не найден в системе (PATH)." -ForegroundColor Red
+    Write-Host "Установите Python 3 с https://www.python.org/ и перезапустите терминал." -ForegroundColor Yellow
+    exit 1
+}}
+
+# 2. Download standalone scanner.py to temp folder
+$tempFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "context_scanner_$([System.Guid]::NewGuid().ToString('N')).py")
+
+try {{
+    Write-Host "[1/2] Загрузка сканера с $BaseUrl/scanner.py ..." -ForegroundColor Gray
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Invoke-WebRequest -Uri "$BaseUrl/scanner.py" -OutFile $tempFile -UseBasicParsing
+
+    Write-Host "[2/2] Запуск сканирования и автоподключения агентов..." -ForegroundColor Green
+    & $pythonExe $tempFile --url "$BaseUrl/sse" --token "$Token" @args
+}} finally {{
+    if (Test-Path $tempFile) {{
+        Remove-Item -Force $tempFile -ErrorAction SilentlyContinue
+    }}
+}}
+"""
+    return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")
+
+
+@app.get("/install.sh", tags=["Agent Bootstrap"], response_class=PlainTextResponse)
+async def serve_install_sh(request: Request, token: Optional[str] = Query(None)):
+    """Bash one-liner installer for Linux / macOS machines."""
+    base_url = _get_effective_base_url(request)
+    auth_token = token or settings.auth_token
+    script = f"""#!/usr/bin/env bash
+set -e
+
+BASE_URL="{base_url}"
+TOKEN="{auth_token}"
+
+echo -e "\\033[36m========================================================\\033[0m"
+echo -e "\\033[36m   ContextSync AI Agent Scanner & MCP Auto-Connector    \\033[0m"
+echo -e "\\033[36m========================================================\\033[0m"
+
+PYTHON_BIN=""
+for cmd in python3 python py; do
+    if command -v "$cmd" >/dev/null 2>&1; then
+        PYTHON_BIN="$cmd"
+        break
+    fi
+done
+
+if [ -z "$PYTHON_BIN" ]; then
+    echo -e "\\033[31m[ERROR] Python 3 не найден в системе (PATH).\\033[0m"
+    echo -e "\\033[33mУстановите Python 3 (apt install python3 / brew install python3) и повторите.\\033[0m"
+    exit 1
+fi
+
+TMP_FILE=$(mktemp /tmp/context_scanner_XXXXXX.py)
+trap 'rm -f "$TMP_FILE"' EXIT
+
+echo -e "\\033[90m[1/2] Загрузка сканера с $BASE_URL/scanner.py ...\\033[0m"
+if command -v curl >/dev/null 2>&1; then
+    curl -sSL "$BASE_URL/scanner.py" -o "$TMP_FILE"
+elif command -v wget >/dev/null 2>&1; then
+    wget -q "$BASE_URL/scanner.py" -O "$TMP_FILE"
+else
+    echo -e "\\033[31m[ERROR] Не найден curl или wget.\\033[0m"
+    exit 1
+fi
+
+echo -e "\\033[32m[2/2] Запуск сканирования и автоподключения агентов...\\033[0m"
+"$PYTHON_BIN" "$TMP_FILE" --url "$BASE_URL/sse" --token "$TOKEN" "$@"
+"""
+    return PlainTextResponse(content=script, media_type="text/plain; charset=utf-8")
 
 
 async def verify_token(

@@ -907,10 +907,18 @@ function renderMcpConfigs() {
     const remoteJsonEl = document.getElementById('mcpRemoteConfigJson');
     if (remoteJsonEl) remoteJsonEl.innerText = JSON.stringify(remoteConfig, null, 2);
 
+    const winCmdEl = document.getElementById('remoteScannerCmdWin');
+    const bashCmdEl = document.getElementById('remoteScannerCmdBash');
     const scannerCmdEl = document.getElementById('remoteScannerCmd');
-    if (scannerCmdEl) {
-        scannerCmdEl.innerText = `python -m src.scanner --url "${sseUrl}" --token "${token}"`;
-    }
+    const dlLinkEl = document.getElementById('remoteScannerDownloadLink');
+
+    const winCommand = `irm ${origin}/install.ps1 | iex`;
+    const bashCommand = `curl -sSL ${origin}/install.sh | bash`;
+
+    if (winCmdEl) winCmdEl.innerText = winCommand;
+    if (bashCmdEl) bashCmdEl.innerText = bashCommand;
+    if (scannerCmdEl) scannerCmdEl.innerText = winCommand;
+    if (dlLinkEl) dlLinkEl.href = `${origin}/scanner.py`;
 }
 
 function copyMcpJson(type) {

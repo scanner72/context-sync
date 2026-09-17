@@ -412,3 +412,32 @@ async def test_stream_http_initialize_and_tools():
         assert oauth_resp.status_code == 200
 
 
+@pytest.mark.asyncio
+async def test_agent_bootstrap_endpoints():
+    """Verify /scanner.py, /install.ps1, and /install.sh endpoints return bootstrap scripts."""
+    from httpx import AsyncClient, ASGITransport
+    from src.api import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://10.10.10.11:8200") as client:
+        # 1. GET /scanner.py
+        resp = await client.get("/scanner.py")
+        assert resp.status_code == 200
+        assert "scan_agents" in resp.text
+        assert "AgentTarget" in resp.text
+
+        # 2. GET /install.ps1
+        resp_ps1 = await client.get("/install.ps1?token=custom-test-token")
+        assert resp_ps1.status_code == 200
+        assert "ContextSync Windows Auto-Installer & Scanner" in resp_ps1.text
+        assert "custom-test-token" in resp_ps1.text
+        assert "http://10.10.10.11:8200" in resp_ps1.text
+
+        # 3. GET /install.sh
+        resp_sh = await client.get("/install.sh?token=custom-test-token")
+        assert resp_sh.status_code == 200
+        assert "ContextSync AI Agent Scanner & MCP Auto-Connector" in resp_sh.text
+        assert "custom-test-token" in resp_sh.text
+        assert "http://10.10.10.11:8200" in resp_sh.text
+
+
+

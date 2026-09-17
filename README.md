@@ -163,21 +163,34 @@ docker compose up -d --build
 
 The Web Dashboard is now live at **`http://localhost:8200`** (or `http://localhost:8000` if configured).
 
-### 2. Auto-Connect All Local Agents
-Run the native auto-connect script for your OS:
+### 2. Auto-Connect Agents
+
+#### Option A: Zero-Install One-Liner (No git clone needed!)
+Run on any laptop or workstation directly from your ContextSync server:
+- **Windows (PowerShell)**:
+  ```powershell
+  irm http://<SERVER_IP>:8200/install.ps1 | iex
+  ```
+- **macOS & Linux (Bash)**:
+  ```bash
+  curl -sSL http://<SERVER_IP>:8200/install.sh | bash
+  ```
+- **Direct Standalone Script**: `http://<SERVER_IP>:8200/scanner.py` (Zero third-party dependencies, standard library only).
+
+#### Option B: From Cloned Repository
 - **macOS & Linux**:
   ```bash
   ./connect-agents.sh
   # Or targeting a remote server:
-  ./connect-agents.sh http://10.10.10.11:8200/sse <YOUR_AUTH_TOKEN>
+  ./connect-agents.sh http://<SERVER_IP>:8200/sse <YOUR_AUTH_TOKEN>
   ```
 - **Windows (PowerShell)**:
   ```powershell
   .\connect-agents.ps1
   # Or targeting a remote server:
-  .\connect-agents.ps1 -Url "http://10.10.10.11:8200/sse" -Token "<YOUR_AUTH_TOKEN>"
+  .\connect-agents.ps1 -Url "http://<SERVER_IP>:8200/sse" -Token "<YOUR_AUTH_TOKEN>"
   ```
-- **Or via Web UI**: Open `http://localhost:8200` ➔ Go to **"Fleet & Scanner"** ➔ Click **"Find & Connect Agents"**.
+- **Or via Web UI**: Open `http://<SERVER_IP>:8200` ➔ Go to **"Fleet & Scanner"** ➔ Click **"Find & Connect Agents"**.
 
 ### 3. Launch Autonomous Auto-Sync Daemon
 Keep project memory and `.cursorrules` / `CLAUDE.md` automatically synchronized across all running agents:

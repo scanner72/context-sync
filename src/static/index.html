@@ -369,24 +369,49 @@
             </div>
 
             <!-- Remote Laptops One-Liner -->
-            <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-lg space-y-3">
-                <h3 class="text-sm font-bold text-white flex items-center space-x-2">
-                    <i data-lucide="terminal" class="w-4 h-4 text-amber-400"></i>
-                    <span data-i18n="remote_cmd_title">Команда автосканирования для других ноутбуков / машин</span>
-                </h3>
-                <p data-i18n="remote_cmd_desc" class="text-xs text-slate-400">
-                    На удалённом ноутбуке выполните эту команду в терминале репозитория — она автоматически найдёт всех локальных агентов и подключит их к вашему серверу:
-                </p>
-
-                <div class="space-y-2">
-                    <div class="flex items-center justify-between text-xs text-slate-400">
-                        <span>PowerShell (Windows) / Bash (macOS & Linux):</span>
-                        <button onclick="copyToClipboard(document.getElementById('remoteScannerCmd').innerText)" class="text-indigo-400 hover:text-indigo-300 flex items-center space-x-1">
-                            <i data-lucide="copy" class="w-3 h-3"></i>
-                            <span data-i18n="btn_copy_cmd">Копировать команду</span>
-                        </button>
+            <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-lg space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center space-x-2">
+                            <i data-lucide="terminal" class="w-4 h-4 text-amber-400"></i>
+                            <span data-i18n="remote_cmd_title">Запуск сканирования и подключения на удалённых ноутбуках / ПК</span>
+                        </h3>
+                        <p data-i18n="remote_cmd_desc" class="text-xs text-slate-400 mt-1">
+                            На вашем рабочем ноутбуке или домашнем компьютере выполните команду в одну строку — репозиторий клонировать не нужно:
+                        </p>
                     </div>
-                    <pre class="bg-[#0d1117] border border-[#30363d] p-3 rounded-lg text-xs text-indigo-300 font-mono overflow-x-auto"><code id="remoteScannerCmd"></code></pre>
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <div class="flex items-center justify-between text-xs text-slate-300 mb-1">
+                            <span class="font-semibold text-sky-400">Windows (PowerShell):</span>
+                            <button onclick="copyToClipboard(document.getElementById('remoteScannerCmdWin').innerText)" class="text-indigo-400 hover:text-indigo-300 flex items-center space-x-1">
+                                <i data-lucide="copy" class="w-3 h-3"></i>
+                                <span data-i18n="btn_copy_cmd">Копировать команду</span>
+                            </button>
+                        </div>
+                        <pre class="bg-[#0d1117] border border-[#30363d] p-3 rounded-lg text-xs text-sky-300 font-mono overflow-x-auto"><code id="remoteScannerCmdWin"></code></pre>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between text-xs text-slate-300 mb-1">
+                            <span class="font-semibold text-emerald-400">macOS / Linux (Bash):</span>
+                            <button onclick="copyToClipboard(document.getElementById('remoteScannerCmdBash').innerText)" class="text-indigo-400 hover:text-indigo-300 flex items-center space-x-1">
+                                <i data-lucide="copy" class="w-3 h-3"></i>
+                                <span data-i18n="btn_copy_cmd">Копировать команду</span>
+                            </button>
+                        </div>
+                        <pre class="bg-[#0d1117] border border-[#30363d] p-3 rounded-lg text-xs text-emerald-300 font-mono overflow-x-auto"><code id="remoteScannerCmdBash"></code></pre>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-2 border-t border-[#30363d] text-xs text-slate-400">
+                        <span>Прямой standalone-скрипт сканера (без внешних зависимостей):</span>
+                        <a id="remoteScannerDownloadLink" href="/scanner.py" target="_blank" class="text-indigo-400 hover:underline flex items-center space-x-1">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                            <span>Скачать scanner.py</span>
+                        </a>
+                    </div>
                 </div>
             </div>
         </section>
