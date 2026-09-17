@@ -269,20 +269,39 @@ async def test_messages_session_validation():
 
 @pytest.mark.asyncio
 async def test_fleet_tracker_api():
-    """Verify fleet tracking registers active agents."""
+    """Verify fleet tracking registers active agents and remote workstation nodes."""
     from src.fleet import fleet_tracker
     fleet_tracker._sessions.clear()
+    fleet_tracker._nodes.clear()
 
     sess = fleet_tracker.register("test-sess-1", "127.0.0.1", user_agent="Cursor/1.0", device_name="Dev-PC")
     sess.record_activity("context_search")
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Test node registration endpoint
+        node_payload = {
+            "hostname": "Laptop-Work",
+            "username": "developer",
+            "os_name": "Windows 11",
+            "agents": [{"name": "Cursor IDE", "app_id": "cursor", "detected": True, "configured": True}],
+        }
+        reg_resp = await client.post(
+            "/api/v1/fleet/register",
+            json=node_payload,
+            headers={"Authorization": "Bearer test-secret-token"},
+        )
+        assert reg_resp.status_code == 200
+        assert reg_resp.json()["status"] == "success"
+
+        # Test listing fleet
         resp = await client.get("/api/v1/fleet", headers={"Authorization": "Bearer test-secret-token"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["count"] == 1
         assert data["agents"][0]["device_name"] == "Dev-PC"
         assert data["agents"][0]["last_tool_called"] == "context_search"
+        assert data["nodes_count"] >= 1
+        assert any(n["hostname"] == "Laptop-Work" for n in data["nodes"])
 
 
 @pytest.mark.asyncio

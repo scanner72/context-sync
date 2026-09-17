@@ -447,9 +447,38 @@ async def mcp_stream_http_endpoint(
 
 @app.get("/api/v1/fleet", tags=["Fleet"])
 async def get_fleet_api(_token: str = Depends(verify_token)):
-    """List all currently active connected agent sessions."""
+    """List all connected agent sessions and registered fleet computers."""
     agents = fleet_tracker.list_active()
-    return {"agents": agents, "count": len(agents)}
+    nodes = fleet_tracker.list_nodes()
+    return {
+        "agents": agents,
+        "count": len(agents),
+        "nodes": nodes,
+        "nodes_count": len(nodes),
+    }
+
+
+@app.post("/api/v1/fleet/register", tags=["Fleet"])
+async def register_fleet_node_api(
+    data: Dict[str, Any],
+    request: Request,
+    _token: str = Depends(verify_token),
+):
+    """Register or heartbeat a remote workstation/laptop in the Fleet registry."""
+    client_ip = request.client.host if request.client else "unknown"
+    hostname = data.get("hostname") or client_ip
+    os_name = data.get("os_name") or "unknown"
+    username = data.get("username") or ""
+    agents = data.get("agents") or []
+
+    node = fleet_tracker.register_node(
+        hostname=hostname,
+        ip=client_ip,
+        os_name=os_name,
+        username=username,
+        agents=agents,
+    )
+    return {"status": "success", "node": node.to_dict()}
 
 
 @app.get("/api/v1/scanner", tags=["Scanner"])

@@ -307,15 +307,16 @@
 
         <!-- ================= TAB: FLEET & AUTO-SCANNER ================= -->
         <section id="tab-fleet" class="space-y-6 hidden">
-            <!-- Active Connected Agents -->
+            <!-- Fleet Nodes (Registered Workstations & Laptops) -->
             <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-lg space-y-4">
                 <div class="flex items-center justify-between">
                     <div>
                         <h2 class="text-base font-bold text-white flex items-center space-x-2">
-                            <i data-lucide="radio" class="w-5 h-5 text-emerald-400"></i>
-                            <span data-i18n="fleet_title">Подключенные агенты и устройства (Live Fleet)</span>
+                            <i data-lucide="laptop" class="w-5 h-5 text-indigo-400"></i>
+                            <span>Подключенные компьютеры и рабочие станции</span>
+                            <span id="nodesCountBadge" class="px-2 py-0.5 rounded-full text-[11px] bg-indigo-900/60 text-indigo-300 font-mono">0</span>
                         </h2>
-                        <p data-i18n="fleet_subtitle" class="text-xs text-slate-400 mt-0.5">Активные MCP-сессии с ваших ноутбуков и серверов в реальном времени</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Устройства сети, на которых настроена синхронизация контекста</p>
                     </div>
                     <button onclick="loadFleet()" class="px-3 py-1.5 bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg text-xs font-medium text-slate-300 flex items-center space-x-1.5 transition">
                         <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
@@ -323,20 +324,38 @@
                     </button>
                 </div>
 
+                <div id="fleetNodesList" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <!-- Dynamic fleet nodes populated here -->
+                </div>
+            </div>
+
+            <!-- Active Connected Live MCP Sessions -->
+            <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-lg space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center space-x-2">
+                            <i data-lucide="radio" class="w-4 h-4 text-emerald-400"></i>
+                            <span data-i18n="fleet_title">Активные MCP-сессии (Live Sessions)</span>
+                            <span id="fleetCountBadge" class="px-2 py-0.5 rounded-full text-[11px] bg-emerald-900/60 text-emerald-300 font-mono">0</span>
+                        </h3>
+                        <p data-i18n="fleet_subtitle" class="text-xs text-slate-400 mt-0.5">Клиенты, обращающиеся к API или держащие SSE-поток</p>
+                    </div>
+                </div>
+
                 <div id="fleetList" class="space-y-3">
                     <!-- Fleet dynamic items -->
                 </div>
             </div>
 
-            <!-- Auto-Scanner for Local Machine -->
+            <!-- Auto-Scanner for Local Server Host -->
             <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-lg space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                         <h3 class="text-base font-bold text-white flex items-center space-x-2">
-                            <i data-lucide="scan" class="w-5 h-5 text-indigo-400"></i>
-                            <span data-i18n="scanner_title">Автосканирование локальных IDE и агентов</span>
+                            <i data-lucide="server" class="w-5 h-5 text-indigo-400"></i>
+                            <span>Сканирование хоста сервера (10.10.10.11)</span>
                         </h3>
-                        <p data-i18n="scanner_subtitle" class="text-xs text-slate-400 mt-0.5">Поиск установленных на этой машине Cursor, Claude Desktop, Antigravity, Windsurf и Cline с автоматическим подключением к Context Sync</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Поиск агентов непосредственно внутри локального окружения сервера</p>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <button onclick="runLocalScanner(false)" id="btnRefreshScanner" title="Проверить статус" class="px-3 py-1.5 bg-[#21262d] hover:bg-[#30363d] text-slate-300 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition border border-[#30363d]">

@@ -390,6 +390,62 @@ def main():
 
     print(f"\nГотово! Успешно сконфигурировано агентов: {modified}. Перезапустите соответствующие IDE/агенты.")
 
+    # Automatically register machine in the central Fleet dashboard
+    report_fleet_node(args.url, args.token, targets)
+
+
+def report_fleet_node(server_url: str, token: str, targets: List[AgentTarget]):
+    """Register this machine and its configured agents with the ContextSync Fleet Hub."""
+    import urllib.request
+    import urllib.parse
+    import socket
+    import platform
+
+    if not token or not server_url:
+        return
+
+    try:
+        parsed = urllib.parse.urlparse(server_url)
+        base_url = f"{parsed.scheme}://{parsed.netloc}"
+        endpoint = f"{base_url}/api/v1/fleet/register"
+
+        hostname = socket.gethostname()
+        username = os.environ.get("USERNAME") or os.environ.get("USER") or "unknown"
+        os_info = f"{platform.system()} {platform.release()}"
+
+        agents_data = [
+            {
+                "name": t.name,
+                "app_id": t.app_id,
+                "detected": t.detected,
+                "configured": t.configured,
+                "config_path": str(t.config_path),
+            }
+            for t in targets if t.detected
+        ]
+
+        payload = {
+            "hostname": hostname,
+            "username": username,
+            "os_name": os_info,
+            "agents": agents_data,
+        }
+
+        req = urllib.request.Request(
+            endpoint,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status in (200, 201):
+                print(f"\n📡 Компьютер '{hostname}' ({username}) успешно зарегистрирован в панели управления Fleet!")
+    except Exception as e:
+        logger.debug(f"Fleet reporting skipped: {e}")
+
 
 if __name__ == "__main__":
     main()

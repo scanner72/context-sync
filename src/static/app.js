@@ -947,59 +947,119 @@ function copyToClipboard(text) {
 async function loadFleet() {
     const container = document.getElementById('fleetList');
     const badge = document.getElementById('fleetCountBadge');
-    if (!container) return;
+    const nodesContainer = document.getElementById('fleetNodesList');
+    const nodesBadge = document.getElementById('nodesCountBadge');
 
     try {
         const resp = await apiFetch('/api/v1/fleet');
         if (!resp.ok) throw new Error('Fleet fetch failed');
         const data = await resp.json();
         const agents = data.agents || [];
-        if (badge) badge.innerText = agents.length;
+        const nodes = data.nodes || [];
 
-        if (agents.length === 0) {
-            container.innerHTML = `
-                <div class="bg-[#0d1117] border border-[#30363d] rounded-xl p-6 text-center text-slate-400 text-xs space-y-2">
-                    <p>${t('fleet_empty_title')}</p>
-                    <p class="text-slate-500 text-[11px]">${t('fleet_empty_desc')}</p>
-                </div>
-            `;
-            return;
+        if (badge) badge.innerText = agents.length;
+        if (nodesBadge) nodesBadge.innerText = nodes.length;
+
+        // 1. Render Registered Nodes (Workstations & Laptops)
+        if (nodesContainer) {
+            if (nodes.length === 0) {
+                nodesContainer.innerHTML = `
+                    <div class="col-span-full bg-[#0d1117] border border-[#30363d] rounded-xl p-6 text-center text-slate-400 text-xs space-y-2">
+                        <p class="font-medium text-slate-300">Пока нет зарегистрированных рабочих станций</p>
+                        <p class="text-slate-500 text-[11px]">Запустите команду автосканирования (PowerShell или Bash) на вашем ноутбуке — и он мгновенно появится здесь!</p>
+                    </div>
+                `;
+            } else {
+                nodesContainer.innerHTML = nodes.map(n => {
+                    const timeAgo = Math.round((new Date() - new Date(n.last_seen)) / 1000);
+                    const timeText = timeAgo < 60 ? `${timeAgo}с назад` : `${Math.round(timeAgo / 60)}м назад`;
+                    const agentsList = (n.agents || []).map(ag => `
+                        <span class="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium ${ag.configured ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60' : 'bg-slate-800 text-slate-400'}">
+                            <span>${ag.configured ? '✓' : '•'}</span>
+                            <span>${ag.name}</span>
+                        </span>
+                    `).join('');
+
+                    return `
+                        <div class="bg-[#0d1117] border border-[#30363d] hover:border-slate-600 rounded-xl p-4 flex flex-col justify-between gap-3 transition">
+                            <div class="flex items-start justify-between">
+                                <div class="space-y-1">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                        <h4 class="text-sm font-bold text-white">${n.hostname}</h4>
+                                        ${n.username ? `<span class="text-xs text-slate-400">(${n.username})</span>` : ''}
+                                    </div>
+                                    <div class="flex items-center space-x-2 text-xs text-slate-400">
+                                        <span class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">${n.ip}</span>
+                                        <span>•</span>
+                                        <span>${n.os_name}</span>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-[10px] uppercase font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded-full">Синхронизирован</span>
+                                    <div class="text-[11px] text-slate-500 mt-1">${timeText}</div>
+                                </div>
+                            </div>
+
+                            <div class="pt-2 border-t border-[#21262d]">
+                                <div class="text-[11px] text-slate-400 mb-1.5 font-medium">Подключенные агенты (${n.configured_count || 0}/${n.detected_count || 0}):</div>
+                                <div class="flex flex-wrap gap-1.5">
+                                    ${agentsList || '<span class="text-xs text-slate-500">Нет обнаруженных агентов</span>'}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
         }
 
-        container.innerHTML = agents.map(a => {
-            const timeAgo = Math.round((new Date() - new Date(a.last_activity)) / 1000);
-            return `
-                <div class="bg-[#0d1117] border border-[#30363d] hover:border-slate-600 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition">
-                    <div class="space-y-1">
-                        <div class="flex items-center space-x-2">
-                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                            <h4 class="text-sm font-semibold text-white">${a.device_name}</h4>
-                            <span class="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">${a.client_ip}</span>
-                        </div>
-                        <p class="text-xs text-slate-400 truncate max-w-md">${a.user_agent}</p>
+        // 2. Render Live MCP Sessions
+        if (container) {
+            if (agents.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-[#0d1117] border border-[#30363d] rounded-xl p-5 text-center text-slate-400 text-xs space-y-1">
+                        <p class="text-slate-400">${t('fleet_empty_title')}</p>
+                        <p class="text-slate-500 text-[11px]">${t('fleet_empty_desc')}</p>
                     </div>
+                `;
+            } else {
+                container.innerHTML = agents.map(a => {
+                    const timeAgo = Math.round((new Date() - new Date(a.last_activity)) / 1000);
+                    const isOnline = a.status === 'online';
+                    return `
+                        <div class="bg-[#0d1117] border border-[#30363d] hover:border-slate-600 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition">
+                            <div class="space-y-0.5">
+                                <div class="flex items-center space-x-2">
+                                    <span class="w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}"></span>
+                                    <h4 class="text-xs font-semibold text-white">${a.device_name}</h4>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">${a.client_ip}</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 truncate max-w-md">${a.user_agent}</p>
+                            </div>
 
-                    <div class="flex items-center space-x-4 text-xs text-slate-400">
-                        <div>
-                            <span class="block text-[10px] uppercase text-slate-500 font-semibold">${t('requests')}</span>
-                            <span class="font-mono text-white font-medium">${a.requests_count}</span>
+                            <div class="flex items-center space-x-4 text-xs text-slate-400">
+                                <div>
+                                    <span class="block text-[9px] uppercase text-slate-500 font-semibold">${t('requests')}</span>
+                                    <span class="font-mono text-white text-xs font-medium">${a.requests_count}</span>
+                                </div>
+                                <div>
+                                    <span class="block text-[9px] uppercase text-slate-500 font-semibold">${t('last_tool')}</span>
+                                    <span class="font-mono text-indigo-400 text-xs font-medium">${a.last_tool_called || '—'}</span>
+                                </div>
+                                <div>
+                                    <span class="block text-[9px] uppercase text-slate-500 font-semibold">${t('activity')}</span>
+                                    <span class="text-slate-300 text-xs font-medium">${timeAgo}${t('seconds_ago')}</span>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <span class="block text-[10px] uppercase text-slate-500 font-semibold">${t('last_tool')}</span>
-                            <span class="font-mono text-indigo-400 font-medium">${a.last_tool_called || '—'}</span>
-                        </div>
-                        <div>
-                            <span class="block text-[10px] uppercase text-slate-500 font-semibold">${t('activity')}</span>
-                            <span class="text-slate-300 font-medium">${timeAgo}${t('seconds_ago')}</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
+                    `;
+                }).join('');
+            }
+        }
 
         safeCreateIcons();
     } catch (err) {
-        container.innerHTML = `<div class="text-center text-red-400 py-4 text-xs">${t('fleet_auth_error')}</div>`;
+        if (container) container.innerHTML = `<div class="text-center text-red-400 py-4 text-xs">${t('fleet_auth_error')}</div>`;
     }
 }
 
