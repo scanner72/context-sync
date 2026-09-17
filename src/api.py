@@ -75,7 +75,14 @@ async def serve_ui():
     """Serve the Web Dashboard SPA."""
     index_file = STATIC_DIR / "index.html"
     if index_file.exists():
-        return FileResponse(index_file)
+        return FileResponse(
+            str(index_file),
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
     return JSONResponse({"message": "Remote Context Store API is running. UI assets not found."})
 
 

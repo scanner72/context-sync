@@ -313,10 +313,10 @@
                     <div>
                         <h2 class="text-base font-bold text-white flex items-center space-x-2">
                             <i data-lucide="laptop" class="w-5 h-5 text-indigo-400"></i>
-                            <span>Подключенные компьютеры и рабочие станции</span>
+                            <span data-i18n="fleet_nodes_title">Подключенные компьютеры и рабочие станции</span>
                             <span id="nodesCountBadge" class="px-2 py-0.5 rounded-full text-[11px] bg-indigo-900/60 text-indigo-300 font-mono">0</span>
                         </h2>
-                        <p class="text-xs text-slate-400 mt-0.5">Устройства сети, на которых настроена синхронизация контекста</p>
+                        <p data-i18n="fleet_nodes_subtitle" class="text-xs text-slate-400 mt-0.5">Устройства сети, на которых настроена синхронизация контекста</p>
                     </div>
                     <button onclick="loadFleet()" class="px-3 py-1.5 bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg text-xs font-medium text-slate-300 flex items-center space-x-1.5 transition">
                         <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
@@ -335,10 +335,10 @@
                     <div>
                         <h3 class="text-sm font-bold text-white flex items-center space-x-2">
                             <i data-lucide="radio" class="w-4 h-4 text-emerald-400"></i>
-                            <span data-i18n="fleet_title">Активные MCP-сессии (Live Sessions)</span>
+                            <span data-i18n="fleet_sessions_title">Активные MCP-сессии (Live Sessions)</span>
                             <span id="fleetCountBadge" class="px-2 py-0.5 rounded-full text-[11px] bg-emerald-900/60 text-emerald-300 font-mono">0</span>
                         </h3>
-                        <p data-i18n="fleet_subtitle" class="text-xs text-slate-400 mt-0.5">Клиенты, обращающиеся к API или держащие SSE-поток</p>
+                        <p data-i18n="fleet_sessions_subtitle" class="text-xs text-slate-400 mt-0.5">Клиенты, обращающиеся к API или держащие SSE-поток</p>
                     </div>
                 </div>
 
@@ -555,6 +555,6 @@
     </div>
 
     <!-- App JavaScript -->
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=2.2"></script>
 </body>
 </html>
